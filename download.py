@@ -40,10 +40,13 @@ def get_caption_languages(video_id):
     try:
         # Fetch all transcripts
         transcripts = YouTubeTranscriptApi.list_transcripts(video_id)
-        result = [t.language_code for t in transcripts]
-        for code in result:
-            if len(code) > 2:
-                result.append(code[:2])
+        result = set([
+            t.language_code
+            for t in transcripts
+        ])
+        # Hebrew edge case
+        if "iw" in result:
+            result.add("he")
         return set(result)
     except Exception as e:
         print(f"An error occurred: {str(e)}")
