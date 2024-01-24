@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from pytube import YouTube
+from pytube.extract import video_id as extract_video_id
 
 
 ALL_VIDEOS_FILE = "/Users/grant/Downloads/all_videos.csv"
@@ -92,17 +93,21 @@ def get_audio_directory(year, webid, root=AUDIO_DIRECTORY):
     return get_caption_directory(year, webid, root)
 
 
-def url_to_directory(video_url, root=CAPTIONS_DIRECTORY, video_id_to_web_id=None):
-    if video_id_to_web_id is None:
-        video_id_to_web_id = get_video_id_to_web_id()
+def url_to_directory(video_url, root=CAPTIONS_DIRECTORY, videos_info=None):
+    if videos_info is None:
+        videos_info = get_videos_information()
 
-    yt = YouTube(video_url)
-    year = yt.publish_date.year
-    web_id = video_id_to_web_id.get(
-        yt.video_id,
-        # Default id value
-        to_snake_case(yt.title.split("|")[0].strip()),
-    )
+    video_id = extract_video_id(video_url)
+    if video_id in videos_info["Slug"]:
+        index = videos_info["Slug"].index(video_id)
+        year = videos_info["Date posted"][index].split("/")[-1]
+        web_id = videos_info["Website id"][index]
+    else:
+        yt = YouTube(video_url)
+        year = yt.publish_date.year
+        web_id = to_snake_case(yt.title.split("|")[0].strip()),
+
+    # Directory
     caption_directory = get_caption_directory(year, web_id, root=root)
     if not os.path.exists(caption_directory):
         os.makedirs(caption_directory)
@@ -110,9 +115,9 @@ def url_to_directory(video_url, root=CAPTIONS_DIRECTORY, video_id_to_web_id=None
 
 
 def urls_to_directories(video_urls, root=CAPTIONS_DIRECTORY):
-    video_id_to_web_id = get_video_id_to_web_id()
+    videos_info = get_videos_information()
     return [
-        url_to_directory(url, root, video_id_to_web_id)
+        url_to_directory(url, root, videos_info)
         for url in video_urls
     ]
 
