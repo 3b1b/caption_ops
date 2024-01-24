@@ -92,7 +92,7 @@ def download_all_captions():
     web_ids = columns["Website id"]
     dates = columns["Date posted"]
 
-    for webid, date, video_id in zip(webids, dates, video_ids):
+    for webid, date, video_id in zip(web_ids, dates, video_ids):
         year = date.split("/")[-1]
         directory = get_caption_directory(year, webid)
         download_captions(video_id, directory)
