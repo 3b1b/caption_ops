@@ -15,8 +15,8 @@ from download import get_caption_languages
 
 
 scopes = ["https://www.googleapis.com/auth/youtube.force-ssl"]
-# SECRETS_FILE = "/Users/grant/cs/api_keys/caption_uploading.json"
-SECRETS_FILE = "/Users/grant/cs/api_keys/caption_uploading2.json"
+SECRETS_FILE = "/Users/grant/cs/api_keys/caption_uploading.json"
+# SECRETS_FILE = "/Users/grant/cs/api_keys/caption_uploading5.json"
 
 
 def get_youtube_api():
@@ -36,7 +36,7 @@ def get_youtube_api():
 
 
 def upload_caption(youtube_api, video_id, language_code, name, caption_file):
-    insert_request = youtube_api.captions().insert (
+    insert_request = youtube_api.captions().insert(
         part="snippet",
         body={
             "snippet": {
@@ -48,9 +48,12 @@ def upload_caption(youtube_api, video_id, language_code, name, caption_file):
         },
         media_body=MediaFileUpload(caption_file)
     )
-    with temporary_message(f"Uploading {caption_file} to {video_id}"):
-        response = insert_request.execute()
-    print(f"Captions from {caption_file} uploaded.")
+    try:
+        with temporary_message(f"Uploading {caption_file} to {video_id}"):
+            response = insert_request.execute()
+        print(f"Captions from {caption_file} uploaded.")
+    except Exception as e:
+        print(f"Failed to upload {caption_file}\n\n{str(e)}\n")
 
 
 def upload_all_new_captions(youtube_api, directory, video_id):
@@ -63,23 +66,18 @@ def upload_all_new_captions(youtube_api, directory, video_id):
             continue
         if language.alpha_2 in existing_language_codes:
             continue
-        file_path = Path(directory, file)
-        print(file_path)
-        try:
-            upload_caption(
-                youtube_api,
-                video_id=video_id,
-                language_code=language.alpha_2,
-                name="",
-                caption_file=file_path
-            )
-        except Exception as e:
-            print(f"Failed to upload {file_path}\n\n{str(e)}\n")
+        upload_caption(
+            youtube_api,
+            video_id=video_id,
+            language_code=language.alpha_2,
+            name="",
+            caption_file=Path(directory, file)
+        )
 
 
 def upload_new_captions_multiple_videos(video_urls):
     youtube_api = get_youtube_api()
-    caption_directories = urls_to_directories(*video_urls)
+    caption_directories = urls_to_directories(video_urls)
     for video_url, caption_dir in zip(video_urls, caption_directories):
         upload_all_new_captions(
             youtube_api,
