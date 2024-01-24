@@ -16,17 +16,17 @@ from download import get_caption_languages
 
 scopes = ["https://www.googleapis.com/auth/youtube.force-ssl"]
 SECRETS_FILE = "/Users/grant/cs/api_keys/caption_uploading.json"
-# SECRETS_FILE = "/Users/grant/cs/api_keys/caption_uploading5.json"
 
 
-def get_youtube_api():
+def get_youtube_api(client_secrets_file=SECRETS_FILE):
     # Authorization
     api_service_name = "youtube"
     api_version = "v3"
 
     # Get credentials and create an API client
     flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(
-        SECRETS_FILE, scopes
+        client_secrets_file=client_secrets_file,
+        scopes=scopes
     )
     credentials = flow.run_local_server(port=0)
     return googleapiclient.discovery.build(
@@ -50,14 +50,20 @@ def upload_caption(youtube_api, video_id, language_code, name, caption_file):
     )
     try:
         with temporary_message(f"Uploading {caption_file} to {video_id}"):
-            response = insert_request.execute()
+            insert_request.execute()
         print(f"Captions from {caption_file} uploaded.")
     except Exception as e:
-        print(f"Failed to upload {caption_file}\n\n{str(e)}\n")
+        if "exceeded" in str(e) and "quota" in str(e):
+            print("Quota exceeded")
+            raise Exception(e)
+        else:
+            print(f"Failed to upload {caption_file}\n\n{str(e)}\n")
 
 
 def upload_all_new_captions(youtube_api, directory, video_id):
-    existing_language_codes = get_caption_languages(video_id)
+    with temporary_message(f"Searching {directory}"):
+        existing_language_codes = get_caption_languages(video_id)
+
     for file in os.listdir(directory):
         if not file.endswith(".srt"):
             continue
