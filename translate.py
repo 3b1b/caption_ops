@@ -9,7 +9,7 @@ import json
 from google.cloud import translate_v2 as translate
 from google.oauth2 import service_account
 
-from helpers import CAPTIONS_DIRECTORY
+from helpers import unformat_time
 from helpers import temporary_message
 from helpers import webids_to_directories
 
@@ -153,14 +153,17 @@ def translate_srt_file(english_srt, target_language):
     target_language_code = pycountry.languages.get(name=target_language).alpha_2
     if os.path.exists(trans_file):
         # Check if it's been done before, and read in
-        with open(trans_file) as fp:
+        with open(trans_file, 'r', encoding='utf-8') as fp:
             translations = json.load(fp)
     else:
         # Otherwise, call the Google api
         with temporary_message(f"Translating {english_srt} to {target_language}"):
             translations = translate_sentences(english_sentences, target_language_code)
+            time_ranges = get_sentence_time_ranges(english_srt)
+            for obj, time_range in zip(translations, time_ranges):
+                obj["time_range"] = time_range
         with open(trans_file, 'w') as fp:
-            json.dump(translations, fp)
+            json.dump(translations, fp, indent=1, ensure_ascii=False)
     trans_sentences = [trans['translatedText'] for trans in translations]
 
     # Divde up the translated sentences to segments matching those from the original srt file
@@ -177,7 +180,7 @@ def translate_srt_file(english_srt, target_language):
     with open(trans_file_name, 'w') as file:
         file.writelines(trans_srt_lines)
 
-    print(f"Successfully wrote {trans_file_name}\n\n")
+    print(f"Successfully wrote {trans_file_name}")
     return trans_file_name
 
 
