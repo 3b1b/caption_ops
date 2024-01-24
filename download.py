@@ -53,7 +53,7 @@ def get_caption_languages(video_id):
 
 def sync_from_youtube():
     video_urls = []
-    directories = urls_to_directories(*video_urls)
+    directories = urls_to_directories(video_urls)
     for video_url, caption_dir in zip(video_urls, directories):
         video_id = YouTube(video_url).video_id
         transcripts = YouTubeTranscriptApi.list_transcripts(video_id)

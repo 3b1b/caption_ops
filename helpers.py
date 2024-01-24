@@ -4,6 +4,7 @@ import datetime
 import csv
 import os
 import sys
+from functools import lru_cache
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -60,6 +61,7 @@ def unformat_time(timestamp):
 
 # Related to video file organization
 
+@lru_cache()
 def get_videos_information(filename=ALL_VIDEOS_FILE):
     with open(filename, mode='r', newline='', encoding='utf-8') as file:
         reader = csv.DictReader(file)
@@ -70,6 +72,14 @@ def get_videos_information(filename=ALL_VIDEOS_FILE):
         return columns
 
 
+def get_video_id_to_web_id():
+    videos_info = get_videos_information()
+    return dict(zip(
+        videos_info["Slug"],
+        videos_info["Website id"]
+    ))
+
+
 def get_caption_directory(year, webid, root=CAPTIONS_DIRECTORY):
     return os.path.join(root, str(year), webid)
 
@@ -78,25 +88,29 @@ def get_audio_directory(year, webid, root=AUDIO_DIRECTORY):
     return get_caption_directory(year, webid, root)
 
 
-def urls_to_directories(*video_urls, root=CAPTIONS_DIRECTORY):
-    videos_info = get_videos_information()
-    result = []
-    for video_url in video_urls:
-        yt = YouTube(video_url)
-        if video_url in videos_info["Video URL"]:
-            index = videos_info["Slug"].index(yt.video_id)
-            webid = videos_info["Website id"][index]
-            date = videos_info["Date posted"][index]
-            year = date.split("/")[-1]
-        else:
-            webid = to_snake_case(yt.title.split("|")[0])
-            year = yt.publish_date.year
+def url_to_directory(video_url, root=CAPTIONS_DIRECTORY, video_id_to_web_id=None):
+    if video_id_to_web_id is None:
+        video_id_to_web_id = get_video_id_to_web_id()
 
-        caption_directory = get_caption_directory(year, webid, root=root)
-        if not os.path.exists(caption_directory):
-            os.makedirs(caption_directory)
-        result.append(caption_directory)
-    return result
+    yt = YouTube(video_url)
+    year = yt.publish_date.year
+    web_id = video_id_to_web_id.get(
+        yt.video_id,
+        # Default id value
+        to_snake_case(yt.title.split("|")[0].strip()),
+    )
+    caption_directory = get_caption_directory(year, web_id, root=root)
+    if not os.path.exists(caption_directory):
+        os.makedirs(caption_directory)
+    return caption_directory
+
+
+def urls_to_directories(video_urls, root=CAPTIONS_DIRECTORY):
+    video_id_to_web_id = get_video_id_to_web_id()
+    return [
+        url_to_directory(url, root, video_id_to_web_id)
+        for url in video_urls
+    ]
 
 
 def webids_to_directories(web_ids, root=CAPTIONS_DIRECTORY):
