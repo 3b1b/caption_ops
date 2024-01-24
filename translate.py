@@ -39,10 +39,9 @@ TARGET_LANGUAGES = [
 
 def get_raw_translation_file(english_srt, target_language):
     result = Path(
-        CAPTIONS_DIRECTORY,
+        Path(english_srt).parent,
         "raw_translations",
-        str(Path(english_srt).parent.stem),
-        f"{target_language}.json"
+        f"{target_language.lower()}.json"
     )
     if not os.path.exists(result.parent):
         os.makedirs(result.parent)
