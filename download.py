@@ -96,18 +96,3 @@ def download_all_captions():
         year = date.split("/")[-1]
         directory = get_caption_directory(year, webid)
         download_captions(video_id, directory)
-
-
-if __name__ == "__main__":
-    # Get video information
-    columns = get_videos_information()
-    video_ids = columns["Slug"]
-    urls = columns["Video URL"]
-    webids = columns["Website id"]
-    dates = columns["Date posted"]
-    categories = columns["Category"]
-
-    # Step in
-    from IPython.terminal.embed import InteractiveShellEmbed
-    ipshell = InteractiveShellEmbed.instance()
-    ipshell() # this call anywhere in your program will start IPython
