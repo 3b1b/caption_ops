@@ -48,12 +48,7 @@ def get_raw_translation_file(english_srt, target_language):
     return result
 
 
-def get_sentence_time_ranges(srt_file):
-    with open(srt_file, 'r') as fp:
-        srt_lines = fp.readlines()
-
-    sents, ends = extract_sentences_with_end_positions(srt_lines)
-
+def get_sentence_time_ranges(srt_lines, end_positions):
     srt_segment_boundaries = [
         list(map(unformat_time, time_line.split(" --> ")))[:2]
         for time_line in srt_lines[1::4]
@@ -69,7 +64,7 @@ def get_sentence_time_ranges(srt_file):
 
     return [
         tuple(map(position_to_time, [start, end]))
-        for start, end in zip(ends[:-1], ends[1:])
+        for start, end in zip(end_positions[:-1], end_positions[1:])
     ]
 
 
@@ -142,33 +137,43 @@ def srt_segments_from_setences_and_end_positions(sentences, end_positions, chara
     return srt_segments
 
 
-def translate_srt_file(english_srt, target_language):
+def translate_srt_file(english_srt, target_language, write_new_srt=True):
     # Pull out english sentences
     with open(english_srt, "r") as file:
         srt_lines = list(file.readlines())
     english_sentences, end_positions = extract_sentences_with_end_positions(srt_lines)
 
     # Translate, and save to file
-    trans_file = get_raw_translation_file(english_srt, target_language)
     target_language_code = pycountry.languages.get(name=target_language).alpha_2
-    if os.path.exists(trans_file):
+    raw_translation_file = get_raw_translation_file(english_srt, target_language)
+    if os.path.exists(raw_translation_file):
         # Check if it's been done before, and read in
-        with open(trans_file, 'r', encoding='utf-8') as fp:
+        with open(raw_translation_file, 'r', encoding='utf-8') as fp:
             translations = json.load(fp)
     else:
         # Otherwise, call the Google api
-        with temporary_message(f"Translating {english_srt} to {target_language}"):
+        with temporary_message(f"Translating to {raw_translation_file}"):
             translations = translate_sentences(english_sentences, target_language_code)
-            time_ranges = get_sentence_time_ranges(english_srt)
+            time_ranges = get_sentence_time_ranges(srt_lines, end_positions)
             for obj, time_range in zip(translations, time_ranges):
                 obj["time_range"] = time_range
-        with open(trans_file, 'w') as fp:
+        with open(raw_translation_file, 'w') as fp:
             json.dump(translations, fp, indent=1, ensure_ascii=False)
-    trans_sentences = [trans['translatedText'] for trans in translations]
+
+    # Possibly just return the raw translation
+    if not write_new_srt:
+        return raw_translation_file
+
+    # TODO, possibly refactor things so that this function always just
+    # returns the raw translation, and have a separate function use it
+    # to write the new srt, using the time stamps in that file, aligning
+    # things so that the new srt file as segments more cleanly falling
+    # on sentence boundaries.
 
     # Divde up the translated sentences to segments matching those from the original srt file
     trans_srt_segments = srt_segments_from_setences_and_end_positions(
-        trans_sentences, end_positions,
+        sentences=[trans['translatedText'] for trans in translations],
+        end_positions=end_positions,
         character_based=(target_language_code in ['zh', 'ja'])
     )
 
