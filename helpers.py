@@ -53,9 +53,13 @@ def format_time(seconds):
 
 
 def unformat_time(timestamp):
-    if not (timestamp.count(":") == 2 and timestamp.count(",") == 1):
+    if not (timestamp.count(":") == 2 and timestamp.count(",") <= 1):
         raise Exception(f"Incorrectly formatted timestamp: {timestamp}")
-    hms, miliseconds = timestamp.split(",")
+    if "," in timestamp:
+        hms, miliseconds = timestamp.split(",")
+    else:
+        hms = timestamp
+        miliseconds = 0
     hours, minutes, seconds = hms.split(":")
     return 3600 * int(hours) + 60 * int(minutes) + int(seconds) + 0.001 * int(miliseconds)
 
