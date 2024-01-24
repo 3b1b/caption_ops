@@ -75,7 +75,7 @@ def reconstruct_raw_translation_from_srts(captions_dir, english_file, translated
 
     # Get time ranges based on english srt file, add if possible
     try:
-        time_ranges = get_sentence_time_ranges(en_srt_lines)
+        time_ranges = get_sentence_time_ranges(en_srt_lines, en_ends)
         for obj, time_range in zip(translation, time_ranges):
             obj["time_range"] = time_range
 
