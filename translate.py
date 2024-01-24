@@ -22,6 +22,7 @@ TARGET_LANGUAGES = [
     "Russian",
     "German",
     "Arabic",
+    "Italian",
     "Portuguese",
     "Japanese",
     "Korean",
@@ -29,12 +30,9 @@ TARGET_LANGUAGES = [
     "Thai",
     "Persian",
     "Indonesian",
-    "Bengali",
-    "Urdu",
-    "Marathi",
-    "Telugu",
+    "Hebrew",
     "Turkish",
-    "Tamil",
+    "Hungarian",
     "Vietnamese",
 ]
 
