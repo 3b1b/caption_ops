@@ -5,37 +5,38 @@ from pathlib import Path
 import json
 
 from helpers import nearest_string
+from helpers import get_videos_information
 from helpers import srt_to_txt
 from helpers import CAPTIONS_DIRECTORY
 from helpers import temporary_message
+from helpers import url_to_directory
 
 from translate import extract_sentences_with_end_positions
 from translate import get_raw_translation_file
+from translate import get_sentence_time_ranges
 
 
-def pull_out_all_past_translations():
-    years = list(map(str, range(2015, 2024)))
+def reconstruct_all_past_translations():
+    videos_info = get_videos_information()
+    urls = videos_info["Video URL"]
     english_file = "english.srt"
-    for year in years:
-        year_path = Path(CAPTIONS_DIRECTORY, year)
-        for subdir in os.listdir(year_path):
-            captions_dir = Path(year_path, subdir)
-            if not os.path.isdir(captions_dir):
-                continue
-            files = os.listdir(captions_dir)
-            if english_file not in files:
-                continue
-            translated_files = [
-                file
-                for file in os.listdir(captions_dir)
-                if file.endswith("_ai.srt")
-            ]
-            with temporary_message(subdir):
-                for translated_file in translated_files:
-                    pull_out_past_translations(captions_dir, english_file, translated_file)
+
+    for url in urls:
+        captions_dir = url_to_directory(url, videos_info=videos_info)
+        files = os.listdir(captions_dir)
+        if english_file not in files:
+            continue
+        translated_files = [
+            file
+            for file in os.listdir(captions_dir)
+            if file.endswith("_ai.srt")
+        ]
+        with temporary_message(captions_dir):
+            for translated_file in translated_files:
+                reconstruct_raw_translation_from_srts(captions_dir, english_file, translated_file)
 
 
-def pull_out_past_translations(captions_dir, english_file, translated_file):
+def reconstruct_raw_translation_from_srts(captions_dir, english_file, translated_file):
     english_srt = Path(captions_dir, english_file)
     trans_srt = Path(captions_dir, translated_file)
     language_name = trans_srt.stem.split("_")[0]
@@ -48,27 +49,41 @@ def pull_out_past_translations(captions_dir, english_file, translated_file):
     en_sents, en_ends = extract_sentences_with_end_positions(en_srt_lines)
     tr_sents, tr_ends = extract_sentences_with_end_positions(tr_srt_lines)
 
+    # Reconstruct aligning sentences
     final_tr_sents = []
     tr_index = 0
-    for en_end in en_ends[1:]:
+    for end in en_ends[1:]:
         tr_sent = ""
-        while tr_index < len(tr_ends) - 1 and tr_ends[tr_index] < en_end:
-            tr_sent += tr_sents[tr_index] + " "
+        # While the current index is farther away than the next, increment
+        while tr_index < len(tr_sents) and abs(tr_ends[tr_index] - end) > abs(tr_ends[tr_index + 1] - end):
+            piece = tr_sents[tr_index]
+            if len(piece.replace(".", "").strip()) > 0:
+                tr_sent += piece + " "
             tr_index += 1
         final_tr_sents.append(tr_sent.strip())
 
+    # Structure the translation prepare save
     translation = [
         dict(
             input=en_sent,
             model="nmt",
-            translatedText=tr_sent
+            translatedText=tr_sent,
         )
         for en_sent, tr_sent in zip(en_sents, final_tr_sents)
     ]
     trans_file = get_raw_translation_file(english_srt, language_name)
-    with open(trans_file, 'w', encoding='utf-8') as fp:
-        json.dump(translation, fp)
 
+    # Get time ranges based on english srt file, add if possible
+    try:
+        time_ranges = get_sentence_time_ranges(en_srt_lines)
+        for obj, time_range in zip(translation, time_ranges):
+            obj["time_range"] = time_range
+
+    except Exception as e:
+        print(f"Could not add time ranges to {trans_file}")
+
+    with open(trans_file, 'w', encoding='utf-8') as fp:
+        json.dump(translation, fp, indent=1, ensure_ascii=False)
 
 
 def move_transcriptions(
