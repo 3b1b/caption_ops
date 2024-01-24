@@ -48,6 +48,31 @@ def get_raw_translation_file(english_srt, target_language):
     return result
 
 
+def get_sentence_time_ranges(srt_file):
+    with open(srt_file, 'r') as fp:
+        srt_lines = fp.readlines()
+
+    sents, ends = extract_sentences_with_end_positions(srt_lines)
+
+    srt_segment_boundaries = [
+        list(map(unformat_time, time_line.split(" --> ")))[:2]
+        for time_line in srt_lines[1::4]
+    ]
+
+    def position_to_time(pos):
+        if int(pos) >= len(srt_segment_boundaries):
+            left, right = srt_segment_boundaries[-1]
+        else:
+            left, right = srt_segment_boundaries[int(pos)]
+        frac = pos % 1
+        return (1 - frac) * left + frac * right
+
+    return [
+        tuple(map(position_to_time, [start, end]))
+        for start, end in zip(ends[:-1], ends[1:])
+    ]
+
+
 def extract_sentences_with_end_positions(srt_lines, end_marks=r'[.!?。]'):
     """
     Extracts the text from the srt file, and breaks it into sentences.
