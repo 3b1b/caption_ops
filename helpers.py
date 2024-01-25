@@ -109,7 +109,7 @@ def url_to_directory(video_url, root=CAPTIONS_DIRECTORY, videos_info=None):
     else:
         yt = YouTube(video_url)
         year = yt.publish_date.year
-        web_id = to_snake_case(yt.title.split("|")[0].strip()),
+        web_id = to_snake_case(yt.title.split("|")[0].strip())
 
     # Directory
     caption_directory = get_caption_directory(year, web_id, root=root)
