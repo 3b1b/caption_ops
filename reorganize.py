@@ -37,6 +37,13 @@ def reconstruct_all_past_translations():
 
 
 def reconstruct_raw_translation_from_srts(captions_dir, english_file, translated_file):
+    ## TODO! This currently functions under the assumption that both
+    # files are chopped into the same segments. Before running in a
+    # way that's meant to robustly recreate a raw translation json,
+    # this should be updated. It probably will be fine to change it
+    # so that "en_ends" and "tr_ends" have the units of seconds, instead
+    # of segmenets
+
     english_srt = Path(captions_dir, english_file)
     trans_srt = Path(captions_dir, translated_file)
     language_name = trans_srt.stem.split("_")[0]
