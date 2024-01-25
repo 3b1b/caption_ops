@@ -29,6 +29,10 @@ def temporary_message(message):
         sys.stdout.flush()
 
 
+def interpolate(start, end, alpha):
+    return (1 - alpha) * start + alpha * end
+
+
 # Some string manipulations
 
 def to_snake_case(name):
