@@ -59,8 +59,7 @@ def get_sentence_time_ranges(srt_lines, end_positions):
             left, right = srt_segment_boundaries[-1]
         else:
             left, right = srt_segment_boundaries[int(pos)]
-        frac = pos % 1
-        return (1 - frac) * left + frac * right
+        return interpolate(left, right, pos % 1)
 
     return [
         tuple(map(position_to_time, [start, end]))
@@ -137,54 +136,110 @@ def srt_segments_from_setences_and_end_positions(sentences, end_positions, chara
     return srt_segments
 
 
-def translate_srt_file(english_srt, target_language, write_new_srt=True):
+def write_srt_from_sentences_and_time_ranges(
+    sentences,
+    time_ranges,
+    output_file_name,
+    max_chars_per_segment=90,
+):
+    punc = r'[\p{P}]'
+    segments = []  # List of triplets (text, start_time, end_time)
+    mcps = max_chars_per_segment
+    for sentence, time_range in zip(sentences, time_ranges):
+        start_time, end_time = time_range
+        n_chars = len(sentence)
+        if n_chars == 0:
+            continue
+        ## Back to the older tactic
+        n_segments = int(np.ceil(n_chars / mcps))
+        best_step = (n_chars // n_segments)
+        half = mcps // 2
+        cuts = [0]
+        while cuts[-1] < n_chars:
+            lh = cuts[-1]
+            rh = lh + mcps
+            if rh >= n_chars:
+                cuts.append(n_chars)
+                continue
+            punc_indices = [
+                lh + half + match.end()
+                for match in regex.finditer(punc, sentence[lh + half:rh])
+            ]
+            if punc_indices:
+                index = np.argmin([abs(pi - (lh + best_step)) for pi in punc_indices])
+                cuts.append(punc_indices[index])
+                continue
+            space_indices = [
+                lh + half + match.end()
+                for match in regex.finditer(" ", sentence[lh + half:rh])
+            ]
+            if space_indices:
+                index = np.argmin([abs(si - (lh + best_step)) for si in space_indices])
+                cuts.append(space_indices[index])
+                continue
+            else:
+                cuts.append(lh + best_step)
+        for lh, rh in zip(cuts, cuts[1:]):
+            segments.append((
+                sentence[lh:rh],
+                interpolate(start_time, end_time, lh / n_chars),
+                interpolate(start_time, end_time, rh / n_chars),
+            ))
+    ## Write the srt
+    with open(output_file_name, 'w', encoding='utf-8') as srt_file:
+        for index, segment in enumerate(segments):
+            caption_text, start_time, end_time = segment
+            srt_format = "\n".join([
+                str(index + 1),
+                format_time(start_time) + " --> " + format_time(end_time),
+                caption_text.strip() + "\n\n",
+            ])
+            srt_file.write(srt_format)
+    return srt_file
+
+
+def get_sentence_translations_with_timings(english_srt, target_language, overwrite=False):
     # Pull out english sentences
     with open(english_srt, "r") as file:
         srt_lines = list(file.readlines())
     english_sentences, end_positions = extract_sentences_with_end_positions(srt_lines)
 
-    # Translate, and save to file
-    target_language_code = pycountry.languages.get(name=target_language).alpha_2
     raw_translation_file = get_raw_translation_file(english_srt, target_language)
-    if os.path.exists(raw_translation_file):
+    if os.path.exists(raw_translation_file) and not overwrite:
         # Check if it's been done before, and read in
         with open(raw_translation_file, 'r', encoding='utf-8') as fp:
             translations = json.load(fp)
-    else:
-        # Otherwise, call the Google api
-        with temporary_message(f"Translating to {raw_translation_file}"):
-            translations = translate_sentences(english_sentences, target_language_code)
-            time_ranges = get_sentence_time_ranges(srt_lines, end_positions)
-            for obj, time_range in zip(translations, time_ranges):
-                obj["time_range"] = time_range
-        with open(raw_translation_file, 'w') as fp:
-            json.dump(translations, fp, indent=1, ensure_ascii=False)
+        return translations
 
-    # Possibly just return the raw translation
-    if not write_new_srt:
-        return raw_translation_file
+    # Otherwise, call the Google api to translate, and save to file
+    with temporary_message(f"Translating to {raw_translation_file}"):
+        trg_lang_code = pycountry.languages.get(name=target_language).alpha_2
+        translations = translate_sentences(english_sentences, trg_lang_code)
+    time_ranges = get_sentence_time_ranges(srt_lines, end_positions)
+    for obj, time_range in zip(translations, time_ranges):
+        obj["time_range"] = time_range
+    with open(raw_translation_file, 'w') as fp:
+        json.dump(translations, fp, indent=1, ensure_ascii=False)
 
-    # TODO, possibly refactor things so that this function always just
-    # returns the raw translation, and have a separate function use it
-    # to write the new srt, using the time stamps in that file, aligning
-    # things so that the new srt file as segments more cleanly falling
-    # on sentence boundaries.
+    return translations
 
-    # Divde up the translated sentences to segments matching those from the original srt file
-    trans_srt_segments = srt_segments_from_setences_and_end_positions(
-        sentences=[trans['translatedText'] for trans in translations],
-        end_positions=end_positions,
-        character_based=(target_language_code in ['zh', 'ja'])
+
+def translate_srt_file(english_srt, target_language):
+    translations = get_sentence_translations_with_timings(english_srt, target_language)
+    # Use the time ranges and translated sentences to generate captions
+    trans_sentences = [trans['translatedText'] for trans in translations]
+    time_ranges = [trans['time_range'] for trans in translations]
+    trans_file_name = Path(
+        Path(english_srt).parent,
+        target_language.lower() + "_ai.srt"
     )
-
-    # Write new file
-    trans_srt_lines = list(srt_lines)
-    for index, segment in zip(it.count(2, 4), trans_srt_segments):
-        trans_srt_lines[index] = segment.strip() + "\n"
-    trans_file_name = Path(Path(english_srt).parent, target_language.lower() + "_ai").with_suffix(".srt")
-    with open(trans_file_name, 'w') as file:
-        file.writelines(trans_srt_lines)
-
+    character_based = (target_language.lower() in ['chinese', 'japanese'])
+    write_srt_from_sentences_and_time_ranges(
+        sentences=trans_sentences,
+        time_ranges=time_ranges,
+        output_file_name=trans_file_name,
+        max_chars_per_segment=(30 if character_based else 90)
+    )
     print(f"Successfully wrote {trans_file_name}")
     return trans_file_name
 
