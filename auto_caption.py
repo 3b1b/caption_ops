@@ -1,4 +1,5 @@
 import argparse
+import os
 from pytube import YouTube
 
 from helpers import url_to_directory
@@ -34,8 +35,8 @@ def auto_caption(video_url, upload=True):
     transcription = transcribe_file(model, audio_file)
     caption_file = transcription_to_srt(
         transcription,
-        out_dir=caption_dir,
-        out_name="english",
+        out_dir=os.path.join(caption_dir, "english"),
+        out_name="captions"
     )
     srt_to_txt(caption_file)
 

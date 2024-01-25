@@ -10,10 +10,57 @@ from helpers import srt_to_txt
 from helpers import CAPTIONS_DIRECTORY
 from helpers import temporary_message
 from helpers import url_to_directory
+from helpers import ensure_exists
 
 from translate import extract_sentences_with_end_positions
-from translate import get_raw_translation_file
+from translate import get_sentence_translation_file
 from translate import get_sentence_time_ranges
+
+
+def change_folder_structure():
+    for year in range(2015, 2024):
+        year_dir = os.path.join(CAPTIONS_DIRECTORY, str(year))
+        for subdir_name in os.listdir(year_dir):
+            cap_dir = os.path.join(year_dir, subdir_name)
+            if not os.path.isdir(cap_dir):
+                continue
+
+            # Move transcript
+            transcript_file = os.path.join(cap_dir, "transcript.txt")
+            if os.path.exists(transcript_file):
+                en_dir = ensure_exists(os.path.join(cap_dir, "english"))
+                shutil.move(
+                    transcript_file,
+                    os.path.join(en_dir, "transcript.txt")
+                )
+
+            # Move captions
+            srts = [f for f in os.listdir(cap_dir) if f.endswith(".srt")]
+            for srt in srts:
+                pieces = srt.split("_")
+                language = pieces[0].split(".")[0]
+                lang_dir = ensure_exists(os.path.join(cap_dir, language))
+                if len(pieces) == 1:
+                    name = "captions.srt"
+                else:
+                    name = "_".join(pieces[1:]).replace("ai.srt", "auto_generated.srt")
+                shutil.move(
+                    os.path.join(cap_dir, srt),
+                    os.path.join(lang_dir, name)
+                )
+
+            # Move raw translations
+            rt_dir = os.path.join(cap_dir, "raw_translations")
+            if not os.path.exists(rt_dir):
+                continue
+            for file in os.listdir(rt_dir):
+                language = file.split(".")[0]
+                shutil.move(
+                    os.path.join(rt_dir, file),
+                    os.path.join(cap_dir, language, "sentence_translations.json")
+                )
+            if len(os.listdir(rt_dir)) == 0:
+                shutil.move(rt_dir, f"~/.Trash/{subdir_name}_old_raw")
 
 
 def reconstruct_all_past_translations():
@@ -78,7 +125,7 @@ def reconstruct_raw_translation_from_srts(captions_dir, english_file, translated
         )
         for en_sent, tr_sent in zip(en_sents, final_tr_sents)
     ]
-    trans_file = get_raw_translation_file(english_srt, language_name)
+    trans_file = get_sentence_translation_file(english_srt, language_name)
 
     # Get time ranges based on english srt file, add if possible
     try:

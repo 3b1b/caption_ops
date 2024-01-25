@@ -33,7 +33,14 @@ def interpolate(start, end, alpha):
     return (1 - alpha) * start + alpha * end
 
 
+def ensure_exists(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+    return path
+
+
 # Some string manipulations
+
 
 def to_snake_case(name):
     return name.lower().replace(" ", "_").replace(":", "_").replace("__", "_").replace("/", "")
@@ -112,10 +119,7 @@ def url_to_directory(video_url, root=CAPTIONS_DIRECTORY, videos_info=None):
         web_id = to_snake_case(yt.title.split("|")[0].strip())
 
     # Directory
-    caption_directory = get_caption_directory(year, web_id, root=root)
-    if not os.path.exists(caption_directory):
-        os.makedirs(caption_directory)
-    return caption_directory
+    return ensure_exists(get_caption_directory(year, web_id, root=root))
 
 
 def urls_to_directories(video_urls, root=CAPTIONS_DIRECTORY):
@@ -128,13 +132,13 @@ def urls_to_directories(video_urls, root=CAPTIONS_DIRECTORY):
 
 def webids_to_directories(web_ids, root=CAPTIONS_DIRECTORY):
     video_info = get_videos_information()
-    years = [
-        video_info["Date posted"][video_info["Website id"].index(webid)].split("/")[-1]
-        for webid in web_ids
-    ]
+    web_id_to_year = {
+        web_id: date.split("/")[-1]
+        for web_id, date in zip(video_info["Website id"], video_info["Date posted"])
+    }
     return [
-        get_caption_directory(year, webid, root=root)
-        for year, webid in zip(years, web_ids)
+        get_caption_directory(web_id_to_year[web_id], web_id, root=root)
+        for web_id in web_ids
     ]
 
 
@@ -146,6 +150,6 @@ def srt_to_txt(srt_file, txt_file_name="transcript"):
         for line in lines[2::4]
     )
     txt_path = Path(Path(srt_file).parent, txt_file_name).with_suffix(".txt")
-    print(f"Writing {txt_path}")
     with open(txt_path, "w", encoding='utf-8') as file:
         file.write(text)
+    print(f"Wrote {txt_path}")
