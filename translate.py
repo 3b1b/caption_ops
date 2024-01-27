@@ -14,12 +14,12 @@ from google.oauth2 import service_account
 from helpers import temporary_message
 from helpers import webids_to_directories
 from helpers import interpolate
-from helpers import format_time
 from helpers import ensure_exists
 from helpers import sub_rip_time_to_seconds
+from helpers import write_srt
 from helpers import SENTENCE_ENDINGS
 
-SERVICE_ACCOUNT = "/Users/grant/cs/api_keys/translations-412015-42f5073bb160.json"
+SERVICE_ACCOUNT = ""
 TARGET_LANGUAGES = [
     "Spanish",
     "Hindi",
@@ -58,8 +58,8 @@ def extract_sentences_with_time_ranges(srt_file, end_marks=SENTENCE_ENDINGS):
     full_text = ""
     sent_delim_times = [sub_rip_time_to_seconds(subs[0].start)]
     for sub in subs:
-        text = sub.text.replace("\n", " ").strip() + " "
-        full_text += text
+        text = sub.text.replace("\n", " ").strip()
+        full_text += " " + text
 
         start = sub_rip_time_to_seconds(sub.start)
         end = sub_rip_time_to_seconds(sub.end)
@@ -88,7 +88,6 @@ def translate_sentences(
     chunk_size=50,
     model=None,
 ):
-    # raise Exception("Not running new translations at this point")
     # Set up the translation client
     credentials = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT)
     translate_client = translate.Client(credentials=credentials)
@@ -118,7 +117,8 @@ def write_srt_from_sentences_and_time_ranges(
         n_chars = len(sentence)
         if n_chars == 0:
             continue
-        ## Back to the older tactic
+        # Bias towards cuts which are on punctuation marks,
+        # and try to keep the segments from being too uneven
         n_segments = int(np.ceil(n_chars / mcps))
         best_step = (n_chars // n_segments)
         half = mcps // 2
@@ -126,27 +126,31 @@ def write_srt_from_sentences_and_time_ranges(
         while cuts[-1] < n_chars:
             lh = cuts[-1]
             rh = lh + mcps
+            best_cut = lh + best_step
             if rh >= n_chars:
                 cuts.append(n_chars)
                 continue
+            # Try cutting at a nearby punctuation mark
             punc_indices = [
                 lh + half + match.end()
                 for match in regex.finditer(punc, sentence[lh + half:rh])
             ]
             if punc_indices:
-                index = np.argmin([abs(pi - (lh + best_step)) for pi in punc_indices])
+                index = np.argmin([abs(pi - best_cut) for pi in punc_indices])
                 cuts.append(punc_indices[index])
                 continue
+            # Otherwise, try a nearby space
             space_indices = [
                 lh + half + match.end()
                 for match in regex.finditer(" ", sentence[lh + half:rh])
             ]
             if space_indices:
-                index = np.argmin([abs(si - (lh + best_step)) for si in space_indices])
+                index = np.argmin([abs(si - best_cut) for si in space_indices])
                 cuts.append(space_indices[index])
                 continue
+            # Otherwise, e.g. in character-based languages, just take what you can get
             else:
-                cuts.append(lh + best_step)
+                cuts.append(best_cut)
         for lh, rh in zip(cuts, cuts[1:]):
             segments.append((
                 sentence[lh:rh],
@@ -154,16 +158,7 @@ def write_srt_from_sentences_and_time_ranges(
                 interpolate(start_time, end_time, rh / n_chars),
             ))
     ## Write the srt
-    with open(output_file_path, 'w', encoding='utf-8') as srt_file:
-        for index, segment in enumerate(segments):
-            caption_text, start_time, end_time = segment
-            srt_format = "\n".join([
-                str(index + 1),
-                format_time(start_time) + " --> " + format_time(end_time),
-                caption_text.strip() + "\n\n",
-            ])
-            srt_file.write(srt_format)
-    return srt_file
+    write_srt(segments, output_file_path)
 
 
 def get_sentence_translations_with_timings(english_srt, target_language, overwrite=False):
@@ -192,21 +187,21 @@ def translate_srt_file(english_srt, target_language):
     # Use the time ranges and translated sentences to generate captions
     trans_sentences = [trans['translatedText'] for trans in translations]
     time_ranges = [trans['time_range'] for trans in translations]
-    trans_file_path = Path(
+    trans_srt = Path(
         Path(english_srt).parent.parent,
         target_language.lower(),
         "auto_generated.srt"
     )
-    ensure_exists(trans_file_path.parent)
+    ensure_exists(trans_srt.parent)
     character_based = (target_language.lower() in ['chinese', 'japanese'])
     write_srt_from_sentences_and_time_ranges(
         sentences=trans_sentences,
         time_ranges=time_ranges,
-        output_file_path=trans_file_path,
+        output_file_path=trans_srt,
         max_chars_per_segment=(30 if character_based else 90)
     )
-    print(f"Successfully wrote {trans_file_path}")
-    return trans_file_path
+    print(f"Successfully wrote {trans_srt}")
+    return trans_srt
 
 
 def translate_to_multiple_languages(english_srt, languages, skip_community_generated=True):
@@ -225,8 +220,3 @@ def translate_multiple_videos(web_ids, languages):
     for directory in webids_to_directories(web_ids):
         english_srt = Path(directory, "english", "captions.srt")
         translate_to_multiple_languages(english_srt, languages)
-
-
-def run_all_translations():
-    web_ids = []
-    languages = TARGET_LANGUAGES
