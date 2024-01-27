@@ -4,9 +4,11 @@ import datetime
 import csv
 import os
 import sys
+import re
 from functools import lru_cache
 from contextlib import contextmanager
 from pathlib import Path
+import pysrt
 
 from pytube import YouTube
 from pytube.extract import video_id as extract_video_id
@@ -15,7 +17,7 @@ from pytube.extract import video_id as extract_video_id
 ALL_VIDEOS_FILE = "/Users/grant/Downloads/all_videos.csv"
 CAPTIONS_DIRECTORY = "/Users/grant/cs/captions"
 AUDIO_DIRECTORY = "/Users/grant/3Blue1Brown Dropbox/3Blue1Brown/audio_tracks"
-
+SENTENCE_ENDINGS = r'(?<=[.!?])\s+|\.$|(?<=[।۔՝։።။។፡。！？])'
 
 @contextmanager
 def temporary_message(message):
@@ -74,6 +76,16 @@ def unformat_time(timestamp):
         miliseconds = 0
     hours, minutes, seconds = hms.split(":")
     return 3600 * int(hours) + 60 * int(minutes) + int(seconds) + 0.001 * int(miliseconds)
+
+
+def sub_rip_time_to_seconds(sub_rip_time):
+    return sum((
+        sub_rip_time.hours * 3600,
+        sub_rip_time.minutes * 60,
+        sub_rip_time.seconds,
+        sub_rip_time.milliseconds / 1000.0
+    ))
+
 
 # Related to video file organization
 
@@ -143,13 +155,20 @@ def webids_to_directories(web_ids, root=CAPTIONS_DIRECTORY):
 
 
 def srt_to_txt(srt_file, txt_file_name="transcript"):
-    with open(srt_file, "r") as file:
-        lines = file.readlines()
-    text = " ".join(
-        line.strip()
-        for line in lines[2::4]
-    )
+    subs = pysrt.open(srt_file)
+    text = " ".join([sub.text.replace("\n", " ") for sub in subs])
+    if not text.endswith("."):
+        text += "."
+
     txt_path = Path(Path(srt_file).parent, txt_file_name).with_suffix(".txt")
-    with open(txt_path, "w", encoding='utf-8') as file:
-        file.write(text)
+    punc = SENTENCE_ENDINGS
+    sentences = [
+        sentence.strip() + mark
+        for sentence, mark in zip(
+            re.split(punc, text),
+            re.findall(punc, text),
+        )
+    ]
+    with open(txt_path, "w", encoding='utf-8') as fp:
+        fp.write("\n".join(sentences))
     print(f"Wrote {txt_path}")
