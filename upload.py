@@ -15,7 +15,7 @@ from download import get_caption_languages
 
 
 scopes = ["https://www.googleapis.com/auth/youtube.force-ssl"]
-SECRETS_FILE = "/Users/grant/cs/api_keys/caption_uploading.json"
+SECRETS_FILE = "/Users/grant/cs/api_keys/caption_uploading1.json"
 
 
 def get_youtube_api(client_secrets_file=SECRETS_FILE):
@@ -64,20 +64,28 @@ def upload_all_new_captions(youtube_api, directory, video_id):
     with temporary_message(f"Searching {directory}"):
         existing_language_codes = get_caption_languages(video_id)
 
-    for file in os.listdir(directory):
-        if not file.endswith(".srt"):
+    for language in os.listdir(directory):
+        language_dir = os.path.join(directory, language)
+        if not os.path.isdir(language_dir):
             continue
-        language = pycountry.languages.get(name=file.split("_")[0])
-        if language is None:
+        lang_obj = pycountry.languages.get(name=language)
+        if lang_obj is None:
             continue
-        if language.alpha_2 in existing_language_codes:
+        if lang_obj.alpha_2 in existing_language_codes:
+            continue
+        srts = [
+            os.path.join(language_dir, file)
+            for file in os.listdir(language_dir)
+            if file.endswith(".srt")
+        ]
+        if not srts:
             continue
         upload_caption(
             youtube_api,
             video_id=video_id,
-            language_code=language.alpha_2,
+            language_code=lang_obj.alpha_2,
             name="",
-            caption_file=Path(directory, file)
+            caption_file=srts[0]
         )
 
 
