@@ -3,141 +3,188 @@ import shutil
 import numpy as np
 from pathlib import Path
 import json
+import re
+import operator as op
 
 from helpers import nearest_string
-from helpers import get_videos_information
 from helpers import srt_to_txt
-from helpers import CAPTIONS_DIRECTORY
 from helpers import temporary_message
-from helpers import url_to_directory
-from helpers import ensure_exists
+from helpers import CAPTIONS_DIRECTORY
 
-from translate import extract_sentences_with_end_positions
+from translate import extract_sentences_with_time_ranges
 from translate import get_sentence_translation_file
-from translate import get_sentence_time_ranges
+from translate import translate_srt_file
+from translate import SENTENCE_ENDINGS
+from translate import pycountry
+from translate import translate_sentences
 
 
-def change_folder_structure():
-    for year in range(2015, 2024):
-        year_dir = os.path.join(CAPTIONS_DIRECTORY, str(year))
-        for subdir_name in os.listdir(year_dir):
-            cap_dir = os.path.join(year_dir, subdir_name)
-            if not os.path.isdir(cap_dir):
-                continue
-
-            # Move transcript
-            transcript_file = os.path.join(cap_dir, "transcript.txt")
-            if os.path.exists(transcript_file):
-                en_dir = ensure_exists(os.path.join(cap_dir, "english"))
-                shutil.move(
-                    transcript_file,
-                    os.path.join(en_dir, "transcript.txt")
-                )
-
-            # Move captions
-            srts = [f for f in os.listdir(cap_dir) if f.endswith(".srt")]
-            for srt in srts:
-                pieces = srt.split("_")
-                language = pieces[0].split(".")[0]
-                lang_dir = ensure_exists(os.path.join(cap_dir, language))
-                if len(pieces) == 1:
-                    name = "captions.srt"
-                else:
-                    name = "_".join(pieces[1:]).replace("ai.srt", "auto_generated.srt")
-                shutil.move(
-                    os.path.join(cap_dir, srt),
-                    os.path.join(lang_dir, name)
-                )
-
-            # Move raw translations
-            rt_dir = os.path.join(cap_dir, "raw_translations")
-            if not os.path.exists(rt_dir):
-                continue
-            for file in os.listdir(rt_dir):
-                language = file.split(".")[0]
-                shutil.move(
-                    os.path.join(rt_dir, file),
-                    os.path.join(cap_dir, language, "sentence_translations.json")
-                )
-            if len(os.listdir(rt_dir)) == 0:
-                shutil.move(rt_dir, f"~/.Trash/{subdir_name}_old_raw")
+def is_fully_populated_translation(translation_file):
+    with open(translation_file, 'r', encoding='utf-8') as fp:
+        trans = json.load(fp)
+    return not any(
+        op.and_(
+            bool(re.sub(SENTENCE_ENDINGS, "", obj["input"])),
+            not bool(re.sub(SENTENCE_ENDINGS, "", obj["translatedText"]))
+        )
+        for obj in trans
+    )
 
 
-def reconstruct_all_past_translations():
-    videos_info = get_videos_information()
-    urls = videos_info["Video URL"]
-    english_file = "english.srt"
+def merge_split_decimals(text):
+    pattern = r'(\d+)\.\s+(\d+)'
+    return re.sub(pattern, r'\1.\2', text)
 
-    for url in urls:
-        captions_dir = url_to_directory(url, videos_info=videos_info)
-        files = os.listdir(captions_dir)
-        if english_file not in files:
+
+def get_all_files_with_ending(ending):
+    result = []
+    for root, dirs, files in os.walk(CAPTIONS_DIRECTORY):
+        for file in files:
+            path = os.path.join(root, file)
+            if path.endswith(ending):
+                result.append(path)
+    return result
+
+
+def get_all_translation_files():
+    return get_all_files_with_ending("sentence_translations.json")
+
+
+
+def regenerate_transcripts():
+    files = []
+    for trans_file in get_all_translation_files():
+        if is_fully_populated_translation(trans_file):
+            files.append(trans_file)
+            path = Path(trans_file)
+            language = path.parent.stem
+            en_srt = Path(path.parent.parent, "english", "captions.srt")
+            try:
+                translate_srt_file(en_srt, language)
+            except Exception as e:
+                print(f"Failed to convert {en_srt} to {language}\n\n{e}\n\n")
+
+
+def stitch_separated_numbers():
+    for trans_file in get_all_translation_files():
+        with open(trans_file, 'r') as fp:
+            trans = json.load(fp)
+        if len(trans) == 0:
             continue
-        translated_files = [
-            file
-            for file in os.listdir(captions_dir)
-            if file.endswith("_ai.srt")
-        ]
-        with temporary_message(captions_dir):
-            for translated_file in translated_files:
-                reconstruct_raw_translation_from_srts(captions_dir, english_file, translated_file)
+
+        new_trans = [trans[0]]
+        for obj2 in trans[1:]:
+            obj1 = new_trans[-1]
+            s1 = obj1["input"]
+            s2 = obj2["input"]
+            if re.findall(r'\d\.$', s1) and re.findall(r'^\d', s2):
+                ts1 = obj1["translatedText"]
+                ts2 = obj2["translatedText"]
+                comb_rage = [obj1["time_range"][0], obj2["time_range"][1]]
+
+                obj1["input"] = s1 + s2
+                obj1["translatedText"] = ts1 + ts2
+                obj1["time_range"] = comb_rage
+            else:
+                new_trans.append(obj2)
+
+        with open(trans_file, 'w') as fp:
+            json.dump(new_trans, fp, indent=1, ensure_ascii=False)
 
 
-def reconstruct_raw_translation_from_srts(captions_dir, english_file, translated_file):
-    ## TODO! This currently functions under the assumption that both
-    # files are chopped into the same segments. Before running in a
-    # way that's meant to robustly recreate a raw translation json,
-    # this should be updated. It probably will be fine to change it
-    # so that "en_ends" and "tr_ends" have the units of seconds, instead
-    # of segmenets
 
-    english_srt = Path(captions_dir, english_file)
-    trans_srt = Path(captions_dir, translated_file)
-    language_name = trans_srt.stem.split("_")[0]
+def reconstruct_sentence_translations():
+    for trans_file in get_all_translation_files():
+        lang_dir = Path(trans_file).parent
+        en_srt = Path(lang_dir.parent, "english", "captions.srt")
+        lang_srt = Path(lang_dir, "auto_generated.srt")
+        if not os.path.exists(lang_srt):
+            continue
 
-    with open(english_srt, 'r') as fp:
-        en_srt_lines = fp.readlines()
-    with open(trans_srt, 'r') as fp:
-        tr_srt_lines = fp.readlines()
+        # Check translation files
+        if is_fully_populated_translation(trans_file):
+            continue
+        try:
+            reconstruct_sentence_translations_from_srt(en_srt, lang_srt)
+            print(trans_file)
+        except Exception as e:
+            print(f"Failed to form {trans_file}\n\n{e}\n\n")
 
-    en_sents, en_ends = extract_sentences_with_end_positions(en_srt_lines)
-    tr_sents, tr_ends = extract_sentences_with_end_positions(tr_srt_lines)
+
+def reconstruct_sentence_translations_from_srt(english_srt, translation_srt):
+    en_sents, en_time_ranges = extract_sentences_with_time_ranges(english_srt)
+    tr_sents, tr_time_ranges = extract_sentences_with_time_ranges(translation_srt)
 
     # Reconstruct aligning sentences
-    final_tr_sents = []
-    tr_index = 0
-    for end in en_ends[1:]:
-        tr_sent = ""
-        # While the current index is farther away than the next, increment
-        while tr_index < len(tr_sents) and abs(tr_ends[tr_index] - end) > abs(tr_ends[tr_index + 1] - end):
-            piece = tr_sents[tr_index]
-            if len(piece.replace(".", "").strip()) > 0:
-                tr_sent += piece + " "
-            tr_index += 1
-        final_tr_sents.append(tr_sent.strip())
+    def overlaps(range1, range2):
+        start1, end1 = range1
+        start2, end2 = range2
+        return op.and_(
+            abs(start1 - start2) < abs(end1 - start2),
+            abs(end1 - end2) < abs(start1 - end2),
+        )
+
+    merged_tr_sents = [
+        merge_split_decimals("".join(
+            tr_sent
+            for tr_sent, tr_range in zip(tr_sents, tr_time_ranges)
+            if overlaps(tr_range, en_range)
+            if re.sub(SENTENCE_ENDINGS, '', tr_sent).strip()
+        ))
+        for en_range in en_time_ranges
+    ]
 
     # Structure the translation prepare save
     translation = [
         dict(
             input=en_sent,
-            model="nmt",
             translatedText=tr_sent,
+            model="nmt",
         )
-        for en_sent, tr_sent in zip(en_sents, final_tr_sents)
+        for en_sent, tr_sent in zip(en_sents, merged_tr_sents)
     ]
+    language_name = Path(translation_srt).parent.stem
     trans_file = get_sentence_translation_file(english_srt, language_name)
 
-    # Get time ranges based on english srt file, add if possible
-    try:
-        time_ranges = get_sentence_time_ranges(en_srt_lines, en_ends)
-        for obj, time_range in zip(translation, time_ranges):
-            obj["time_range"] = time_range
-
-    except Exception as e:
-        print(f"Could not add time ranges to {trans_file}")
+    # Add time ranges based on english srt file
+    for obj, time_range in zip(translation, en_time_ranges):
+        obj["time_range"] = time_range
 
     with open(trans_file, 'w', encoding='utf-8') as fp:
         json.dump(translation, fp, indent=1, ensure_ascii=False)
+
+
+def clean_broken_translations():
+    key_langs = ['spanish', 'hindi', 'chinese', 'french', 'russian']
+    broken_files = []
+    for trans_file in get_all_translation_files():
+        if not is_fully_populated_translation(trans_file):
+            lang = Path(trans_file).parent.stem
+            if lang in key_langs:
+                broken_files.append(trans_file)
+
+    for file in broken_files:
+        if Path(file).parent.parent.stem.startswith("ldm"):
+            continue
+        with open(file, 'r') as fp:
+            trans = json.load(fp)
+
+        indices_to_fix = set()
+        for index, group in enumerate(trans):
+            if group["input"] and not group["translatedText"]:
+                indices_to_fix = indices_to_fix.union({index - 1, index, index + 1})
+        indices_to_fix = sorted([i for i in indices_to_fix if 0 <= i < len(trans)])
+        en_sents = [trans[i]["input"] for i in indices_to_fix]
+        lang_code = pycountry.languages.get(name=Path(file).parent.stem).alpha_2
+
+        with temporary_message(f"Translating lines in {file} to {lang_code}"):
+            tr_sents = [group["translatedText"] for group in translate_sentences(en_sents, lang_code)]
+
+        for index, tr_sent in zip(indices_to_fix, tr_sents):
+            trans[index]["translatedText"] = tr_sent
+
+        with open(file, 'w') as fp:
+            json.dump(trans, fp, indent=1, ensure_ascii=False)
 
 
 def move_transcriptions(
