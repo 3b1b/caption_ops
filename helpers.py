@@ -154,6 +154,22 @@ def webids_to_directories(web_ids, root=CAPTIONS_DIRECTORY):
     ]
 
 
+def write_srt(subtitles, file_name):
+    subrip_items = [
+        pysrt.SubRipItem(
+            index=index,
+            start=pysrt.SubRipTime.from_ordinal(int(start_seconds * 1000)),
+            end=pysrt.SubRipTime.from_ordinal(int(end_seconds * 1000)),
+            text=text,
+        )
+        for index, (text, start_seconds, end_seconds) in enumerate(subtitles, start=1)
+    ]
+    # Save the subtitles to an SRT file
+    subs = pysrt.SubRipFile(items=subrip_items)
+    subs.save(file_name, encoding='utf-8')
+    return file_name
+
+
 def srt_to_txt(srt_file, txt_file_name="transcript"):
     subs = pysrt.open(srt_file)
     text = " ".join([sub.text.replace("\n", " ") for sub in subs])
