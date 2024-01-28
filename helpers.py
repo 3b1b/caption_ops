@@ -1,6 +1,5 @@
 import Levenshtein
 import numpy as np
-import datetime
 import csv
 import os
 import sys
@@ -8,8 +7,6 @@ import re
 import json
 from functools import lru_cache
 from contextlib import contextmanager
-from pathlib import Path
-import pysrt
 
 from pytube import YouTube
 from pytube.extract import video_id as extract_video_id
