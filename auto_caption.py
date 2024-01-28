@@ -33,15 +33,16 @@ def auto_caption(video_url, upload=True):
     # Transcribe
     model = load_whisper_model()
     transcription = transcribe_file(model, audio_file)
-    caption_file = transcription_to_srt(
-        transcription,
-        out_dir=os.path.join(caption_dir, "english"),
-        out_name="captions"
-    )
-    srt_to_txt(caption_file)
+    srt_path = Path(caption_dir, "english", "captions.srt")
+    whisper_srt_path = Path(caption_dir, "english", "whisper_captions.srt")
+    ensure_exists(srt_path.parent)
+    simple_transcription_to_srt(transcription, whisper_srt_path)
+    strongly_matched_transcription_to_srt(transcription, srt_path)
+    srt_to_txt(srt_path)
 
     # Translate
-    translate_to_multiple_languages(caption_file, languages=TARGET_LANGUAGES)
+    translate_to_multiple_languages(srt_path, languages=TARGET_LANGUAGES)
+    translate_title_to_multiple_languages(video_url, languages=TARGET_LANGUAGES)
 
     if upload:
         video_id = YouTube(video_url).video_id
