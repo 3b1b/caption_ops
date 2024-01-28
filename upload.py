@@ -4,7 +4,6 @@ import googleapiclient.discovery
 import googleapiclient.errors
 from pytube import YouTube
 import pycountry
-from pathlib import Path
 
 from googleapiclient.http import MediaFileUpload
 
@@ -12,6 +11,7 @@ from helpers import urls_to_directories
 from helpers import temporary_message
 
 from download import get_caption_languages
+from download import download_video_description
 
 
 scopes = ["https://www.googleapis.com/auth/youtube.force-ssl"]
@@ -58,6 +58,34 @@ def upload_caption(youtube_api, video_id, language_code, name, caption_file):
             raise Exception(e)
         else:
             print(f"Failed to upload {caption_file}\n\n{str(e)}\n")
+
+
+def upload_video_title_and_description(youtube_api, video_id, language_code, title, description=None):
+    # Just use the same description, because why not?
+    if description is None:
+        description = download_video_description(youtube_api, video_id)
+    videos_update_request = youtube_api.videos().update(
+        part="snippet,localizations",
+        body={
+            "id": video_id,
+            "snippet": {
+                "categoryId": "27"  # Educational videos
+            },
+            "localizations": {
+                language_code: {
+                    "title": title,
+                    "description": description
+                }
+            }
+        }
+    )
+    try:
+        videos_update_request.execute()
+        print(f"Details for video ID {video_id} updated: Title - '{title}' in {language_code}.")
+    except Exception as e:
+        print(f"Failed to update details for video ID {video_id}\n\n{str(e)}\n")
+
+
 
 
 def upload_all_new_captions(youtube_api, directory, video_id):
