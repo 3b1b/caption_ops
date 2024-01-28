@@ -1,19 +1,24 @@
 import argparse
 import os
 from pytube import YouTube
+from pathlib import Path
 
 from helpers import url_to_directory
-from helpers import srt_to_txt
+from helpers import ensure_exists
 from helpers import AUDIO_DIRECTORY
 
 from download import download_youtube_audio
 
 from transcribe_video import load_whisper_model
 from transcribe_video import transcribe_file
-from transcribe_video import transcription_to_srt
+from transcribe_video import simple_transcription_to_srt
+from transcribe_video import strongly_matched_transcription_to_srt
 
 from translate import translate_to_multiple_languages
+from translate import translate_title_to_multiple_languages
 from translate import TARGET_LANGUAGES
+
+from srt_ops import srt_to_txt
 
 from upload import get_youtube_api
 from upload import upload_caption
