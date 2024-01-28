@@ -21,6 +21,7 @@ def download_youtube_audio(url, directory, name="original_audio"):
     return result
 
 
+# TODO, better use pysrt and move this to the srt_ops file
 def write_yt_transcript_as_srt(transcript, filepath):
     with open(filepath, 'w', encoding='utf-8') as srt_file:
         for idx, segment in enumerate(transcript.fetch()):
@@ -98,3 +99,18 @@ def download_all_captions():
         year = date.split("/")[-1]
         directory = get_caption_directory(year, webid)
         download_captions(video_id, directory)
+
+
+def download_video_description(youtube_api, video_id):
+    videos_list_request = youtube_api.videos().list(
+        part="snippet",
+        id=video_id
+    )
+    try:
+        response = videos_list_request.execute()
+        # Extracting the description from the first item in the response
+        description = response['items'][0]['snippet']['description']
+        return description
+    except Exception as e:
+        print(f"Failed to get description for video ID {video_id}\n\n{str(e)}\n")
+        return ""
