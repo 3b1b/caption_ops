@@ -79,9 +79,7 @@ def update_sentence_timing_in_translation_files():
             continue
 
         # Get word timings
-        with open(timing_file, 'r') as fp:
-            word_timings = json.load(fp)
-
+        word_timings = json_load(timing_file)
         sentences = [obj['input'] for obj in trans]
         time_ranges = get_sentence_timings(word_timings, sentences)
 
@@ -126,7 +124,6 @@ def upload_all_titles():
             language_code=language_code,
             title=title
         )
-
 
 
 def stitch_separated_numbers():

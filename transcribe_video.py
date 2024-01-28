@@ -1,7 +1,4 @@
-import Levenshtein
 import torch
-import numpy as np
-import json
 from pathlib import Path
 
 import whisper
@@ -10,8 +7,6 @@ from whisper.utils import get_writer
 from helpers import temporary_message
 from helpers import get_sentences
 from helpers import json_dump
-from helpers import json_load
-from helpers import SENTENCE_ENDINGS
 
 from sentence_timings import get_sentence_timings
 
@@ -58,14 +53,12 @@ def get_words_with_timings(whisper_segments):
     ]
 
 
-def strongly_matched_transcription_to_srt(transcription: dict, srt_path: str | Path):
-    srt_path = Path(srt_path)
+def save_word_timings(whisper_transcription: dict, file_path: str | Path):
+    words_with_timings = get_words_with_timings(whisper_transcription["segments"])
+    json_dump(words_with_timings, file_path)
 
-    # Record the word timings
-    timing_file = Path(srt_path.parent, "word_timings.json")
-    words_with_timings = get_words_with_timings(transcription["segments"])
-    json_dump(words_with_timings, timing_file)
 
+def words_with_timings_to_srt(words_with_timings: list, srt_path: str | Path):
     words, starts, ends = zip(*words_with_timings)
     sentences = get_sentences("".join(words))
     if len(sentences) == 0:
@@ -83,7 +76,7 @@ def strongly_matched_transcription_to_srt(transcription: dict, srt_path: str | P
     write_srt_from_sentences_and_time_ranges(sentences, time_ranges, srt_path)
 
 
-def simple_transcription_to_srt(transcription: dict, srt_path: str | Path):
+def write_whisper_srt(transcription: dict, srt_path: str | Path):
     srt_path = Path(srt_path)
     # Directly write whisper segments to file
     writer = get_writer("srt", str(srt_path.parent))

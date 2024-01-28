@@ -121,7 +121,7 @@ def sentence_translations_to_srt(sentence_translation_file):
     return trans_srt
 
 
-def translate_srt_file(english_srt, target_language):
+def write_translated_srt(english_srt, target_language):
     # If it hasn't been translated before, generated the translation
     trans_file = get_sentence_translation_file(english_srt, target_language)
     if not os.path.exists(trans_file):
@@ -137,7 +137,7 @@ def translate_to_multiple_languages(english_srt, languages, skip_community_gener
         if skip_community_generated and any(f.endswith("community.srt") for f in os.listdir(lang_dir)):
             continue
         try:
-            translate_srt_file(english_srt, language)
+            write_translated_srt(english_srt, language)
         except Exception as e:
             print(f"Failed to translate {english_srt} to {language}\n{e}\n\n")
 
