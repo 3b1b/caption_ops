@@ -5,23 +5,34 @@ from pathlib import Path
 import json
 import re
 import operator as op
+import Levenshtein
 
 from helpers import nearest_string
 from helpers import srt_to_txt
 from helpers import temporary_message
+from helpers import json_load
+from helpers import json_dump
 from helpers import CAPTIONS_DIRECTORY
 
-from translate import extract_sentences_with_time_ranges
+from translate import get_sentence_timings_from_srt
 from translate import get_sentence_translation_file
+from translate import sentence_translations_to_srt
 from translate import translate_srt_file
 from translate import SENTENCE_ENDINGS
 from translate import pycountry
 from translate import translate_sentences
+from translate import write_srt_from_sentences_and_time_ranges
+
+from transcribe_video import get_sentence_timings
+from transcribe_video import get_sentence_timings_from_word_timings
 
 
 def is_fully_populated_translation(translation_file):
-    with open(translation_file, 'r', encoding='utf-8') as fp:
-        trans = json.load(fp)
+    """
+    Returns false if any non-empty english sentence
+    map to empty translated sentences
+    """
+    trans = json_load(translation_file)
     return not any(
         op.and_(
             bool(re.sub(SENTENCE_ENDINGS, "", obj["input"])),
@@ -36,9 +47,9 @@ def merge_split_decimals(text):
     return re.sub(pattern, r'\1.\2', text)
 
 
-def get_all_files_with_ending(ending):
+def get_all_files_with_ending(ending, root=CAPTIONS_DIRECTORY):
     result = []
-    for root, dirs, files in os.walk(CAPTIONS_DIRECTORY):
+    for root, dirs, files in os.walk(root):
         for file in files:
             path = os.path.join(root, file)
             if path.endswith(ending):
@@ -50,19 +61,50 @@ def get_all_translation_files():
     return get_all_files_with_ending("sentence_translations.json")
 
 
+def fix_new_captions():
+    for word_timing_file in get_all_files_with_ending("word_timings.json"):
+        cap_srt = Path(Path(word_timing_file).parent, "captions.srt")
+        sentences, time_ranges = get_sentence_timings_from_word_timings(word_timing_file)
+        write_srt_from_sentences_and_time_ranges(sentences, time_ranges, cap_srt)
+        print(f"Rewrote {cap_srt}")
+
+
+def update_sentence_timing_in_translation_files():
+    for trans_file in get_all_translation_files():
+        trans = json_load(trans_file)
+        cap_dir = Path(trans_file).parent.parent
+        timing_file = Path(cap_dir, "english", "word_timings.json")
+        if not os.path.exists(timing_file):
+            continue
+
+        # Get word timings
+        with open(timing_file, 'r') as fp:
+            word_timings = json.load(fp)
+
+        sentences = [obj['input'] for obj in trans]
+        time_ranges = get_sentence_timings(word_timings, sentences)
+
+        for obj, time_range in zip(trans, time_ranges):
+            obj["time_range"] = time_range
+
+        json_dump(trans, trans_file)
+
+        # Rewrite the srt
+        if is_fully_populated_translation(trans_file):
+            try:
+                sentence_translations_to_srt(trans_file)
+            except Exception as e:
+                print(f"Failed to convert {trans_file} to srt\n\n{e}\n\n")
+
 
 def regenerate_transcripts():
     files = []
     for trans_file in get_all_translation_files():
         if is_fully_populated_translation(trans_file):
-            files.append(trans_file)
-            path = Path(trans_file)
-            language = path.parent.stem
-            en_srt = Path(path.parent.parent, "english", "captions.srt")
             try:
-                translate_srt_file(en_srt, language)
+                sentence_translations_to_srt(trans_file)
             except Exception as e:
-                print(f"Failed to convert {en_srt} to {language}\n\n{e}\n\n")
+                print(f"Failed to convert {trans_file} to srt\n\n{e}\n\n")
 
 
 def stitch_separated_numbers():
@@ -92,7 +134,6 @@ def stitch_separated_numbers():
             json.dump(new_trans, fp, indent=1, ensure_ascii=False)
 
 
-
 def reconstruct_sentence_translations():
     for trans_file in get_all_translation_files():
         lang_dir = Path(trans_file).parent
@@ -112,8 +153,8 @@ def reconstruct_sentence_translations():
 
 
 def reconstruct_sentence_translations_from_srt(english_srt, translation_srt):
-    en_sents, en_time_ranges = extract_sentences_with_time_ranges(english_srt)
-    tr_sents, tr_time_ranges = extract_sentences_with_time_ranges(translation_srt)
+    en_sents, en_time_ranges = get_sentence_timings_from_srt(english_srt)
+    tr_sents, tr_time_ranges = get_sentence_timings_from_srt(translation_srt)
 
     # Reconstruct aligning sentences
     def overlaps(range1, range2):
