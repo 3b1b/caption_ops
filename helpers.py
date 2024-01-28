@@ -5,6 +5,7 @@ import csv
 import os
 import sys
 import re
+import json
 from functools import lru_cache
 from contextlib import contextmanager
 from pathlib import Path
@@ -87,7 +88,32 @@ def sub_rip_time_to_seconds(sub_rip_time):
     ))
 
 
+def get_sentences(full_text, end_marks=SENTENCE_ENDINGS):
+    return [
+        (sentence + mark).strip()
+        for sentence, mark in zip(
+            re.split(end_marks, full_text),
+            re.findall(end_marks, full_text),
+        )
+    ]
+
+
 # Related to video file organization
+
+def json_load(filename):
+    with open(filename, 'r', encoding='utf-8') as fp:
+        result = json.load(fp)
+    return result
+
+
+def json_dump(obj, filename, indent=1, ensure_ascii=False):
+    with open(filename, 'w', encoding='utf-8') as fp:
+        result = json.dump(
+            obj, fp,
+            indent=indent,
+            ensure_ascii=ensure_ascii,
+        )
+    return result
 
 @lru_cache()
 def get_videos_information(filename=ALL_VIDEOS_FILE):
