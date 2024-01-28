@@ -6,6 +6,7 @@ import json
 import re
 import operator as op
 
+from helpers import get_videos_information
 from helpers import nearest_string
 from srt_ops import srt_to_txt
 from helpers import temporary_message
@@ -22,6 +23,9 @@ from translate import translate_sentences
 from srt_ops import write_srt_from_sentences_and_time_ranges
 
 from transcribe_video import get_sentence_timings
+
+from upload import upload_video_title
+from upload import get_youtube_api
 
 
 def is_fully_populated_translation(translation_file):
@@ -102,6 +106,27 @@ def regenerate_transcripts():
                 sentence_translations_to_srt(trans_file)
             except Exception as e:
                 print(f"Failed to convert {trans_file} to srt\n\n{e}\n\n")
+
+
+def upload_all_titles():
+    videos_info = get_videos_information()
+    web_id_to_video_id = dict(zip(
+        videos_info["Website id"],
+        videos_info["Slug"],
+    ))
+    youtube_api = get_youtube_api()
+    for title_file in get_all_files_with_ending("title.json"):
+        title = json_load(title_file)["translatedText"]
+        language = Path(title_file).parent.stem
+        web_id = Path(title_file).parent.parent.stem
+        language_code = pycountry.languages.get(name=language).alpha_2
+        upload_video_title(
+            youtube_api=youtube_api,
+            video_id=web_id_to_video_id[web_id],
+            language_code=language_code,
+            title=title
+        )
+
 
 
 def stitch_separated_numbers():
