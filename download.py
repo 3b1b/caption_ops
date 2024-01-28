@@ -7,10 +7,10 @@ from youtube_transcript_api import YouTubeTranscriptApi
 from helpers import temporary_message
 from helpers import get_videos_information
 from helpers import to_snake_case
-from helpers import format_time
 from helpers import get_caption_directory
 from helpers import urls_to_directories
 
+from srt_ops import format_time
 
 def download_youtube_audio(url, directory, name="original_audio"):
     yt = YouTube(url)
@@ -51,7 +51,6 @@ def get_caption_languages(video_id):
     except Exception as e:
         print(f"An error occurred: {str(e)}")
         return set()
-
 
 
 def sync_from_youtube():

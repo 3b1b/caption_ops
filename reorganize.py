@@ -5,26 +5,23 @@ from pathlib import Path
 import json
 import re
 import operator as op
-import Levenshtein
 
 from helpers import nearest_string
-from helpers import srt_to_txt
+from srt_ops import srt_to_txt
 from helpers import temporary_message
 from helpers import json_load
 from helpers import json_dump
 from helpers import CAPTIONS_DIRECTORY
+from helpers import SENTENCE_ENDINGS
 
 from translate import get_sentence_timings_from_srt
 from translate import get_sentence_translation_file
 from translate import sentence_translations_to_srt
-from translate import translate_srt_file
-from translate import SENTENCE_ENDINGS
 from translate import pycountry
 from translate import translate_sentences
-from translate import write_srt_from_sentences_and_time_ranges
+from srt_ops import write_srt_from_sentences_and_time_ranges
 
 from transcribe_video import get_sentence_timings
-from transcribe_video import get_sentence_timings_from_word_timings
 
 
 def is_fully_populated_translation(translation_file):
@@ -64,7 +61,7 @@ def get_all_translation_files():
 def fix_new_captions():
     for word_timing_file in get_all_files_with_ending("word_timings.json"):
         cap_srt = Path(Path(word_timing_file).parent, "captions.srt")
-        sentences, time_ranges = get_sentence_timings_from_word_timings(word_timing_file)
+        sentences, time_ranges = get_sentence_timings(json_load(word_timing_file))
         write_srt_from_sentences_and_time_ranges(sentences, time_ranges, cap_srt)
         print(f"Rewrote {cap_srt}")
 
