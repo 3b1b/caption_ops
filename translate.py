@@ -15,9 +15,14 @@ from helpers import temporary_message
 from helpers import webids_to_directories
 from helpers import interpolate
 from helpers import ensure_exists
+from helpers import get_sentences
+from helpers import json_load
+from helpers import json_dump
 from helpers import sub_rip_time_to_seconds
 from helpers import write_srt
 from helpers import SENTENCE_ENDINGS
+
+from transcribe_video import get_sentence_timings_from_word_timings
 
 SERVICE_ACCOUNT = ""
 TARGET_LANGUAGES = [
@@ -43,44 +48,6 @@ TARGET_LANGUAGES = [
 ]
 
 
-def get_sentence_translation_file(english_srt, target_language):
-    result = Path(
-        Path(english_srt).parent.parent,
-        target_language.lower(),
-        "sentence_translations.json"
-    )
-    ensure_exists(result.parent)
-    return result
-
-
-def extract_sentences_with_time_ranges(srt_file, end_marks=SENTENCE_ENDINGS):
-    subs = pysrt.open(srt_file)
-    full_text = ""
-    sent_delim_times = [sub_rip_time_to_seconds(subs[0].start)]
-    for sub in subs:
-        text = sub.text.replace("\n", " ").strip()
-        full_text += " " + text
-
-        start = sub_rip_time_to_seconds(sub.start)
-        end = sub_rip_time_to_seconds(sub.end)
-        end_mark_positions = [match.end() for match in re.finditer(end_marks, text)]
-        if len(end_mark_positions) == 0:
-            continue
-        fractions = np.array(end_mark_positions) / len(text)
-        for frac in fractions:
-            sent_delim_times.append(interpolate(start, end, frac))
-
-    sentences = [
-        (sentence + mark).strip()
-        for sentence, mark in zip(
-            re.split(end_marks, full_text),
-            re.findall(end_marks, full_text),
-        )
-    ]
-    time_ranges = list(zip(sent_delim_times[:-1], sent_delim_times[1:]))
-    return sentences, time_ranges
-
-
 def translate_sentences(
     src_sentences,
     target_language_code,
@@ -101,6 +68,49 @@ def translate_sentences(
             model=model,
         ))
     return translations
+
+
+def translate_title(video_url, language):
+    pass
+
+
+def get_sentence_translation_file(english_srt, target_language):
+    result = Path(
+        Path(english_srt).parent.parent,
+        target_language.lower(),
+        "sentence_translations.json"
+    )
+    ensure_exists(result.parent)
+    return result
+
+
+# TODO, move to some file devoted to timings
+def get_sentence_timings_from_srt(srt_file, end_marks=SENTENCE_ENDINGS):
+    subs = pysrt.open(srt_file)
+    full_text = ""
+    sent_delim_times = [sub_rip_time_to_seconds(subs[0].start)]
+    for sub in subs:
+        text = sub.text.replace("\n", " ").strip() + " "
+        full_text += text
+
+        start = sub_rip_time_to_seconds(sub.start)
+        end = sub_rip_time_to_seconds(sub.end)
+        end_mark_positions = [match.end() for match in re.finditer(end_marks, text)]
+        if len(end_mark_positions) == 0:
+            continue
+        fractions = np.array(end_mark_positions) / len(text)
+        for frac in fractions:
+            sent_delim_times.append(interpolate(start, end, frac))
+
+    sentences = [
+        (sentence + mark).strip()
+        for sentence, mark in zip(
+            re.split(end_marks, full_text),
+            re.findall(end_marks, full_text),
+        )
+    ]
+    time_ranges = list(zip(sent_delim_times[:-1], sent_delim_times[1:]))
+    return sentences, time_ranges
 
 
 def write_srt_from_sentences_and_time_ranges(
@@ -151,6 +161,7 @@ def write_srt_from_sentences_and_time_ranges(
             # Otherwise, e.g. in character-based languages, just take what you can get
             else:
                 cuts.append(best_cut)
+        cuts.sort()
         for lh, rh in zip(cuts, cuts[1:]):
             segments.append((
                 sentence[lh:rh],
@@ -161,39 +172,38 @@ def write_srt_from_sentences_and_time_ranges(
     write_srt(segments, output_file_path)
 
 
-def get_sentence_translations_with_timings(english_srt, target_language, overwrite=False):
-    # Check if it's been done before, and read in
-    sentence_translation_file = get_sentence_translation_file(english_srt, target_language)
-    if os.path.exists(sentence_translation_file) and not overwrite:
-        with open(sentence_translation_file, 'r', encoding='utf-8') as fp:
-            translations = json.load(fp)
-        return translations
+def generate_sentence_translations_with_timings(english_srt, target_language):
+    # Get sentences and timings
+    word_timing_file = Path(Path(english_srt).parent, "word_timings.json")
+    if os.path.exists(word_timing_file):
+        en_sentences, time_ranges = get_sentence_timings_from_word_timings(word_timing_file)
+    else:
+        en_sentences, time_ranges = get_sentence_timings_from_srt(english_srt)
 
-    # Otherwise, call the Google api to translate, and save to file
-    english_sentences, time_ranges = extract_sentences_with_time_ranges(english_srt)
+    # Call the Google api to translate, and save to file
+    sentence_translation_file = get_sentence_translation_file(english_srt, target_language)
     with temporary_message(f"Translating to {sentence_translation_file}"):
         trg_lang_code = pycountry.languages.get(name=target_language).alpha_2
-        translations = translate_sentences(english_sentences, trg_lang_code)
+        translations = translate_sentences(en_sentences, trg_lang_code)
     for obj, time_range in zip(translations, time_ranges):
         obj["time_range"] = time_range
-    with open(sentence_translation_file, 'w') as fp:
-        json.dump(translations, fp, indent=1, ensure_ascii=False)
 
-    return translations
+    json_dump(translations, sentence_translation_file)
+
+    return sentence_translation_file
 
 
-def translate_srt_file(english_srt, target_language):
-    translations = get_sentence_translations_with_timings(english_srt, target_language)
+def sentence_translations_to_srt(sentence_translation_file):
+    translations = json_load(sentence_translation_file)
+    directory = Path(sentence_translation_file).parent
+    language = directory.stem
+
     # Use the time ranges and translated sentences to generate captions
     trans_sentences = [trans['translatedText'] for trans in translations]
     time_ranges = [trans['time_range'] for trans in translations]
-    trans_srt = Path(
-        Path(english_srt).parent.parent,
-        target_language.lower(),
-        "auto_generated.srt"
-    )
-    ensure_exists(trans_srt.parent)
-    character_based = (target_language.lower() in ['chinese', 'japanese'])
+    trans_srt = Path(directory, "auto_generated.srt")
+    character_based = (language.lower() in ['chinese', 'japanese'])
+
     write_srt_from_sentences_and_time_ranges(
         sentences=trans_sentences,
         time_ranges=time_ranges,
@@ -202,6 +212,15 @@ def translate_srt_file(english_srt, target_language):
     )
     print(f"Successfully wrote {trans_srt}")
     return trans_srt
+
+
+def translate_srt_file(english_srt, target_language):
+    # If it hasn't been translated before, generated the translation
+    trans_file = get_sentence_translation_file(english_srt, target_language)
+    if not os.path.exists(trans_file):
+        generate_sentence_translations_with_timings(english_srt, target_language)
+    # Use the translation to wrie the new srt
+    return sentence_translations_to_srt(trans_file)
 
 
 def translate_to_multiple_languages(english_srt, languages, skip_community_generated=True):
