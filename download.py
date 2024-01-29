@@ -1,5 +1,7 @@
 import os
 from pathlib import Path
+import pysrt
+import numpy as np
 
 from pytube import YouTube
 from youtube_transcript_api import YouTubeTranscriptApi
@@ -9,8 +11,10 @@ from helpers import get_videos_information
 from helpers import to_snake_case
 from helpers import get_caption_directory
 from helpers import urls_to_directories
+from helpers import get_web_id_to_video_id
 
-from srt_ops import format_time
+from srt_ops import write_srt
+from srt_ops import sub_rip_time_to_seconds
 
 def download_youtube_audio(url, directory, name="original_audio"):
     yt = YouTube(url)
@@ -21,20 +25,14 @@ def download_youtube_audio(url, directory, name="original_audio"):
     return result
 
 
-# TODO, better use pysrt and move this to the srt_ops file
-def write_yt_transcript_as_srt(transcript, filepath):
-    with open(filepath, 'w', encoding='utf-8') as srt_file:
-        for idx, segment in enumerate(transcript.fetch()):
-            caption_text = segment['text']
-            start_time = segment['start']
-            end_time = segment['start'] + segment['duration']
-            srt_format = "\n".join([
-                str(idx + 1),
-                format_time(start_time) + " --> " + format_time(end_time),
-                caption_text + "\n\n",
-            ])
-            srt_file.write(srt_format)
-    print(f"Captions downloaded successfully to '{filepath}'.")
+def write_yt_transcript_as_srt(transcript, file_path, quiet=False):
+    segments = [
+        (s['text'], s['start'], s['start'] + s['duration'])
+        for s in transcript.fetch()
+    ]
+    write_srt(segments, file_path)
+    if not quiet:
+        print(f"Captions downloaded successfully to '{file_path}'.")
 
 
 def get_caption_languages(video_id):
@@ -63,6 +61,45 @@ def sync_from_youtube():
         en_trans = [t for t in transcripts if t.language_code == "en"][0]
         caption_file = Path(caption_dir, "english.srt")
         write_yt_transcript_as_srt(en_trans, caption_file)
+
+
+def does_yt_transcript_match_srt(yt_transcript, srt_file):
+    online_segments = yt_transcript.fetch()
+    online_texts = [s['text'].strip() for s in online_segments]
+    online_times = [[s['start'], s['start'] + s['duration']] for s in online_segments]
+
+    local_segments = pysrt.open(str(srt_file))
+    local_texts = [s.text.strip() for s in local_segments]
+    local_times = [
+        list(map(sub_rip_time_to_seconds, [s.start, s.end]))
+        for s in local_segments
+    ]
+
+    if len(online_segments) != len(local_segments):
+        return False
+
+    text_matches = all([s1 == s2 for s1, s2 in zip(online_texts, local_texts)])
+    time_matches = np.isclose(online_times, local_times, atol=0.1).all()
+
+    return text_matches and time_matches
+
+
+def local_captions_match_youtube(srt_file):
+    # TODO, Write a version of this that looks through one directory
+    # at a time, calling YouTubeTranscriptApi.list_transcripts only as needed
+    srt_file = Path(srt_file)
+    language = srt_file.parent.stem
+    web_id = srt_file.parent.parent.stem
+    video_id = get_web_id_to_video_id()[web_id]
+
+    transcripts = list(YouTubeTranscriptApi.list_transcripts(video_id))
+    languages = [t.language.lower() for t in transcripts]
+    if language not in languages:
+        return False
+
+    # Check YouTube transcript to str similarity
+    transcript = transcripts[languages.index(language)]
+    return does_yt_transcript_match_srt(transcript, srt_file)
 
 
 # Function to download captions as SRT files
@@ -101,16 +138,17 @@ def download_all_captions():
         download_captions(video_id, directory)
 
 
-def download_video_description(youtube_api, video_id):
+def download_video_title_and_description(youtube_api, video_id):
     videos_list_request = youtube_api.videos().list(
-        part="snippet",
+        part="snippet,localizations",
         id=video_id
     )
     try:
         response = videos_list_request.execute()
         # Extracting the description from the first item in the response
+        title = response['items'][0]['snippet']['title']
         description = response['items'][0]['snippet']['description']
-        return description
+        return title, description
     except Exception as e:
         print(f"Failed to get description for video ID {video_id}\n\n{str(e)}\n")
-        return ""
+        return "", ""
