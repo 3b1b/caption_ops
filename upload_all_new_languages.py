@@ -13,8 +13,8 @@ def upload_all_new_languages():
     # When quota is increased, I need to run this on everything
     # youtube_api = get_youtube_api()
     youtube_apis = [
-        get_youtube_api(f"/Users/grant/cs/api_keys/caption_uploading{n}.json")
-        for n in range(1, 6)
+        get_youtube_api(f"/Users/grant/cs/api_keys/caption_uploading{n + 1}.json")
+        for n in range(10)
     ]
     api_index = 0
     youtube_api = youtube_apis[api_index]
