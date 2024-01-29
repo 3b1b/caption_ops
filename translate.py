@@ -109,7 +109,7 @@ def sentence_translations_to_srt(sentence_translation_file):
     trans_sentences = [trans['translatedText'] for trans in translations]
     time_ranges = [trans['time_range'] for trans in translations]
     trans_srt = Path(directory, "auto_generated.srt")
-    character_based = (language.lower() in ['chinese', 'japanese'])
+    character_based = (language.lower() in ['chinese', 'japanese', 'korean'])
 
     write_srt_from_sentences_and_time_ranges(
         sentences=trans_sentences,
