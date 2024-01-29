@@ -14,8 +14,7 @@ from download import get_caption_languages
 from download import download_video_description
 
 
-scopes = ["https://www.googleapis.com/auth/youtube.force-ssl"]
-SECRETS_FILE = "/Users/grant/cs/api_keys/caption_uploading1.json"
+SECRETS_FILE = os.getenv('YOUTUBE_UPLOADING_KEY')
 
 
 def get_youtube_api(client_secrets_file=SECRETS_FILE):

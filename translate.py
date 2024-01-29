@@ -18,7 +18,7 @@ from srt_ops import write_srt_from_sentences_and_time_ranges
 from sentence_timings import get_sentence_timings_from_srt
 from sentence_timings import get_sentences_with_timings
 
-SERVICE_ACCOUNT_PATH = "~/cs/api_keys/translations-412015-42f5073bb160.json"
+SERVICE_ACCOUNT_PATH = os.getenv('GOOGLE_TRANSLATION_SERVICE_ACCOUNT')
 TARGET_LANGUAGES = [
     "Spanish",
     "Hindi",
