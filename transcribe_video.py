@@ -45,9 +45,9 @@ def transcribe_file(
     return transcription
 
 
-def get_words_with_timings(whisper_segments):
+def get_words_with_timings(whisper_segments, precision=2):
     return [
-        [chunk['word'], chunk['start'], chunk["end"]]
+        [chunk['word'], round(chunk['start'], precision), round(chunk["end"], precision)]
         for segment in whisper_segments
         for chunk in segment['words']
     ]
@@ -55,7 +55,8 @@ def get_words_with_timings(whisper_segments):
 
 def save_word_timings(whisper_transcription: dict, file_path: str | Path):
     words_with_timings = get_words_with_timings(whisper_transcription["segments"])
-    json_dump(words_with_timings, file_path)
+    json_dump(words_with_timings, file_path, indent=None)
+    return words_with_timings
 
 
 def words_with_timings_to_srt(words_with_timings: list, srt_path: str | Path):
