@@ -62,6 +62,13 @@ def get_sentence_timings(
     return time_ranges
 
 
+def get_sentences_with_timings(words_with_timings):
+    words, starts, ends = zip(*words_with_timings)
+    sentences = get_sentences("".join(words))
+    time_ranges = get_sentence_timings(words_with_timings, sentences)
+    return sentences, time_ranges
+
+
 # Hopefully all functions below here are no longer needed
 def get_sentence_timings_from_srt(srt_file, end_marks=SENTENCE_ENDINGS):
     subs = pysrt.open(srt_file)
