@@ -101,6 +101,14 @@ def get_video_id_to_web_id():
     ))
 
 
+def get_web_id_to_video_id():
+    videos_info = get_videos_information()
+    return dict(zip(
+        videos_info["Website id"],
+        videos_info["Slug"],
+    ))
+
+
 def get_caption_directory(year, webid, root=CAPTIONS_DIRECTORY):
     return os.path.join(root, str(year), webid)
 
