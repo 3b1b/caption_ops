@@ -35,7 +35,33 @@ def get_youtube_api(client_secrets_file=SECRETS_FILE):
     )
 
 
-def upload_caption(youtube_api, video_id, language_code, name, caption_file):
+def delete_captions(youtube_api, video_id, language_code):
+    # Check the current caption ids
+    caption_id = None
+    try:
+        request = youtube_api.captions().list(part="snippet", videoId=video_id)
+        response = request.execute()
+        for item in response["items"]:
+            if item["snippet"]["language"] == language_code:
+                caption_id = item["id"]
+                break
+    except Exception as e:
+        print(f"Failed to retrieve captions on {video_id}\n\n{e}\n\n")
+
+    # Delete the captions
+    if caption_id:
+        try:
+            delete_request = youtube_api.captions().delete(id=caption_id)
+            delete_request.execute()
+            print(f"Deleted existing {language_code} on {video_id}")
+        except Exception as e:
+            print(f"Failed to delete {language_code} on {video_id}\n\n{e}\n\n")
+
+
+def upload_caption(youtube_api, video_id, language_code, name, caption_file, replace=False):
+    if replace:
+        delete_captions(youtube_api, video_id, language_code)
+    # Insert new captions
     insert_request = youtube_api.captions().insert(
         part="snippet",
         body={
@@ -84,8 +110,6 @@ def upload_video_title_and_description(youtube_api, video_id, language_code, tit
         print(f"Details for video ID {video_id} updated: Title - '{title}' in {language_code}.")
     except Exception as e:
         print(f"Failed to update details for video ID {video_id}\n\n{str(e)}\n")
-
-
 
 
 def upload_all_new_captions(youtube_api, directory, video_id):
