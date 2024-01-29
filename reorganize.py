@@ -24,7 +24,6 @@ from srt_ops import write_srt_from_sentences_and_time_ranges
 
 from sentence_timings import get_sentences_with_timings
 
-from upload import upload_video_title_and_description
 from upload import get_youtube_api
 
 
@@ -68,99 +67,6 @@ def fix_new_captions():
         sentences, time_ranges = get_sentences_with_timings(json_load(word_timing_file))
         write_srt_from_sentences_and_time_ranges(sentences, time_ranges, cap_srt)
         print(f"Rewrote {cap_srt}")
-
-
-def add_new_translations():
-    from helpers import webids_to_directories
-    from translate import write_translated_srt
-
-    web_ids = [
-        "neural-networks",
-        "gradient-descent",
-        "backpropagation",
-        "backpropagation-calculus",
-        "essence-of-calculus",
-        "divergence-and-curl",
-        "taylor-series",
-        "eulers-number",
-        "derivatives-and-transforms",
-        "derivatives",
-        "derivative-formulas-geometrically",
-        "integration",
-        "limits",
-        "implicit-differentiation",
-        "chain-rule-and-product-rule",
-        "area-and-slope",
-        "brachistochrone",
-        "higher-order-derivatives",
-        "vectors",
-        "span",
-        "linear-transformations",
-        "eigenvalues",
-        "determinant",
-        "matrix-multiplication",
-        "inverse-matrices",
-        "eola-preview",
-        "dot-products",
-        "3d-transformations",
-        "change-of-basis",
-        "cross-products",
-        "nonsquare-matrices",
-        "abstract-vector-spaces",
-        "cross-products-extended",
-        "cramers-rule",
-        "quick-eigen",
-        "fourier-series",
-        "differential-equations",
-        "eulers-formula-dynamically",
-        "matrix-exponents",
-        "pdes",
-        "heat-equation",
-        "hardest-problem",
-        "clacks",
-        "clacks-solution",
-        "clacks-via-light",
-        "fourier-transforms",
-        "clt",
-        "convolutions",
-        "hamming-codes",
-        "hamming-codes-2",
-        "sphere-area",
-        "basel-problem",
-        "prime-spirals",
-        "windmills",
-        "prism",
-        "refractive-index-questions",
-        "zeta",
-        "quaternions",
-        "newtons-fractal",
-        "shadows",
-        "wordle",
-        "groups-and-monsters",
-        "bayes-theorem",
-        "dandelin-spheres",
-        "pythagorean-triples",
-        "barber-pole-1",
-        "barber-pole-2",
-        "fractal-dimension",
-    ]
-    languages = ["Spanish", "Hindi", "Chinese", "French", "Russian"]
-    cap_dirs = webids_to_directories(web_ids)
-
-    n_chars = 0
-    for cap_dir in cap_dirs:
-        english_srt = Path(cap_dir, "english", "captions.srt")
-        with open(Path(cap_dir, "english", "transcript.txt")) as fp:
-            script = " ".join(fp.readlines())
-
-        for lang in languages:
-            lang_dir = Path(cap_dir, lang.lower())
-            trans_file = Path(lang_dir, "sentence_translations.json")
-            if not os.path.exists(trans_file):
-                n_chars += len(script)
-                print(trans_file)
-                # write_translated_srt(english_srt, lang)
-
 
 
 def fix_word_timings():
