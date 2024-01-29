@@ -39,7 +39,7 @@ def sub_rip_time_to_seconds(sub_rip_time):
     ))
 
 
-def write_srt(subtitles, file_name):
+def write_srt(segments, file_name):
     subrip_items = [
         pysrt.SubRipItem(
             index=index,
@@ -47,7 +47,7 @@ def write_srt(subtitles, file_name):
             end=pysrt.SubRipTime.from_ordinal(int(end_seconds * 1000)),
             text=text,
         )
-        for index, (text, start_seconds, end_seconds) in enumerate(subtitles, start=1)
+        for index, (text, start_seconds, end_seconds) in enumerate(segments, start=1)
     ]
     # Save the subtitles to an SRT file
     subs = pysrt.SubRipFile(items=subrip_items)
