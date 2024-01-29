@@ -13,8 +13,10 @@ from srt_ops import sub_rip_time_to_seconds
 def get_sentence_timings(
     # List of triplets, (word, start_time, end_time)
     words_with_timings,
-    # If none, sentences are formed from the words above
-    sentences=None,
+    # The assumption is that these loosely match those formed by
+    # concatenating the words from words_with_timings, and can
+    # be fuzzily matched to the appropriate positions there
+    sentences,
     # For fuzzy matching of sentences to indices in the full text
     max_shift=20
 ):
@@ -26,6 +28,9 @@ def get_sentence_timings(
     words, starts, ends = zip(*words_with_timings)
     if sentences is None:
         sentences = get_sentences("".join(words))
+
+    if len(sentences) == 0:
+        return []
 
     # Word indices
     full_text = "".join(words)
@@ -41,11 +46,12 @@ def get_sentence_timings(
             max(guess - max_shift, 0),
             min(guess + max_shift, len(full_text)),
         ))
-        lds = [
-            Levenshtein.distance(full_text[i:i + len(sent2)], sent2)
-            for i in guess_range
-        ]
-        sent_indices.append(guess_range[np.argmin(lds)])
+        if len(guess_range) == 0:
+            sent_indices.append(last)
+        else:
+            substrs = [full_text[i:i + len(sent2)] for i in guess_range]
+            lds = [Levenshtein.distance(substr, sent2) for substr in substrs]
+            sent_indices.append(guess_range[np.argmin(lds)])
     sent_indices.append(len(full_text))  # Add final fence post
 
     time_ranges = []
