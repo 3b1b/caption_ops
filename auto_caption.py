@@ -77,9 +77,9 @@ def auto_caption(video_url, upload=True):
     audio_file = download_youtube_audio(video_url, audio_dir)
 
     # Transcribe
-    model = load_whisper_model()
     en_dir = ensure_exists(Path(caption_dir, "english"))
     caption_path = Path(en_dir, "captions.srt")
+    model = load_whisper_model()
     write_all_transcription_files(model, audio_file, caption_path)
 
     # Translate
@@ -96,7 +96,6 @@ def auto_caption(video_url, upload=True):
             print(f"Failed to upload {caption_path}\n\n{e}\n\n")
         # Upload all other languages
         upload_all_new_captions(youtube_api, caption_dir, video_id)
-        # TODO, upload the titles and descriptions
 
 
 if __name__ == "__main__":
