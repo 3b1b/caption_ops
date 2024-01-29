@@ -82,10 +82,12 @@ def write_srt_from_sentences_and_time_ranges(
     max_chars_per_segment=90,
 ):
     punc = r'(?<=[.!?,:;])\s+|\.$|(?<=[।۔՝։።။។፡。！？])'
-    segments = []  # List of triplets (text, start_time, end_time)
     mcps = max_chars_per_segment
-    for sentence, time_range in zip(sentences, time_ranges):
-        start_time, end_time = time_range
+
+    texts = []
+    starts = []
+    ends = []
+    for sentence, (start_time, end_time) in zip(sentences, time_ranges):
         n_chars = len(sentence)
         if n_chars == 0:
             continue
@@ -99,36 +101,32 @@ def write_srt_from_sentences_and_time_ranges(
             lh = cuts[-1]
             rh = lh + mcps
             best_cut = lh + best_step
-            if rh >= n_chars:
-                cuts.append(n_chars)
-                continue
-            # Try cutting at a nearby punctuation mark
-            punc_indices = [
-                lh + half + match.end()
-                for match in regex.finditer(punc, sentence[lh + half:rh])
+            punc_indices, space_indices = [
+                [lh + half + match.end() for match in regex.finditer(pattern, sentence[lh + half:rh])]
+                for pattern in [punc, " "]
             ]
-            if punc_indices:
+            if rh >= n_chars:
+                # We're at the end of a sentence
+                cuts.append(n_chars)
+            elif punc_indices:
+                # Try to cut on a punctuation mark
                 index = np.argmin([abs(pi - best_cut) for pi in punc_indices])
                 cuts.append(punc_indices[index])
-                continue
-            # Otherwise, try a nearby space
-            space_indices = [
-                lh + half + match.end()
-                for match in regex.finditer(" ", sentence[lh + half:rh])
-            ]
-            if space_indices:
+            elif space_indices:
+                # Otherwise, at least cut on a space
                 index = np.argmin([abs(si - best_cut) for si in space_indices])
                 cuts.append(space_indices[index])
-                continue
-            # Otherwise, e.g. in character-based languages, just take what you can get
             else:
+                # Otherwise, e.g. in character-based languages, just take what you can get
                 cuts.append(best_cut)
-        cuts.sort()
         for lh, rh in zip(cuts, cuts[1:]):
-            segments.append((
-                sentence[lh:rh],
-                interpolate(start_time, end_time, lh / n_chars),
-                interpolate(start_time, end_time, rh / n_chars),
-            ))
-    ## Write the srt
+            texts.append(sentence[lh:rh])
+            starts.append(interpolate(start_time, end_time, lh / n_chars))
+            ends.append(interpolate(start_time, end_time, rh / n_chars),)
+    # Correct the case of time overlaps between sentences causing things to get out of order
+    starts.sort()
+    ends.sort()
+
+    # Write the srt
+    segments = list(zip(texts, starts, ends))
     write_srt(segments, output_file_path)
