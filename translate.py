@@ -16,9 +16,9 @@ from helpers import url_to_directory
 from srt_ops import write_srt_from_sentences_and_time_ranges
 
 from sentence_timings import get_sentence_timings_from_srt
-from sentence_timings import get_sentence_timings
+from sentence_timings import get_sentences_with_timings
 
-SERVICE_ACCOUNT_PATH = ""
+SERVICE_ACCOUNT_PATH = "~/cs/api_keys/translations-412015-42f5073bb160.json"
 TARGET_LANGUAGES = [
     "Spanish",
     "Hindi",
@@ -84,7 +84,7 @@ def generate_sentence_translations_with_timings(english_srt, target_language):
     # Get sentences and timings
     word_timing_file = Path(Path(english_srt).parent, "word_timings.json")
     if os.path.exists(word_timing_file):
-        en_sentences, time_ranges = get_sentence_timings(json_load(word_timing_file))
+        en_sentences, time_ranges = get_sentences_with_timings(json_load(word_timing_file))
     else:
         en_sentences, time_ranges = get_sentence_timings_from_srt(english_srt)
 
@@ -115,7 +115,7 @@ def sentence_translations_to_srt(sentence_translation_file):
         sentences=trans_sentences,
         time_ranges=time_ranges,
         output_file_path=trans_srt,
-        max_chars_per_segment=(30 if character_based else 90)
+        max_chars_per_segment=(30 if character_based else 90),
     )
     print(f"Successfully wrote {trans_srt}")
     return trans_srt
