@@ -10,15 +10,7 @@ from upload import upload_all_new_captions
 
 
 def upload_all_new_languages():
-    # When quota is increased, I need to run this on everything
-    # youtube_api = get_youtube_api()
-    youtube_apis = [
-        get_youtube_api(f"/Users/grant/cs/api_keys/caption_uploading{n + 1}.json")
-        for n in range(10)
-    ]
-    api_index = 0
-    youtube_api = youtube_apis[api_index]
-
+    youtube_api = get_youtube_api()
     videos_info = get_videos_information()
     urls = videos_info["Video URL"][::-1]
 
@@ -31,12 +23,9 @@ def upload_all_new_languages():
             upload_all_new_captions(youtube_api, caption_dir, video_id)
         except Exception as e:
             # This should only happen when the quota has been reached
-            api_index = (api_index + 1) % len(youtube_apis)
-            if api_index == 0:
-                now = datetime.datetime.now().strftime("%H:%M:%S")
-                print(f"Time is now {now}, sleeping for 12 hours")
-                time.sleep(60 * 60 * 12)
-            youtube_api = youtube_apis[api_index]
+            now = datetime.datetime.now().strftime("%H:%M:%S")
+            print(f"Time is now {now}, sleeping for 12 hours")
+            time.sleep(60 * 60 * 12)
             index -= 1
         index += 1
 
