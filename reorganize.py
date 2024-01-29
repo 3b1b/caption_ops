@@ -15,16 +15,16 @@ from helpers import json_dump
 from helpers import CAPTIONS_DIRECTORY
 from helpers import SENTENCE_ENDINGS
 
-from translate import get_sentence_timings_from_srt
+from translate import generate_sentence_translations_with_timings, get_sentence_timings_from_srt
 from translate import get_sentence_translation_file
 from translate import sentence_translations_to_srt
 from translate import pycountry
 from translate import translate_sentences
 from srt_ops import write_srt_from_sentences_and_time_ranges
 
-from transcribe_video import get_sentence_timings
+from sentence_timings import get_sentences_with_timings
 
-from upload import upload_video_title
+from upload import upload_video_title_and_description
 from upload import get_youtube_api
 
 
@@ -58,16 +58,119 @@ def get_all_files_with_ending(ending, root=CAPTIONS_DIRECTORY):
     return result
 
 
-def get_all_translation_files():
-    return get_all_files_with_ending("sentence_translations.json")
+def get_all_translation_files(root=CAPTIONS_DIRECTORY):
+    return get_all_files_with_ending("sentence_translations.json", root)
 
 
 def fix_new_captions():
     for word_timing_file in get_all_files_with_ending("word_timings.json"):
         cap_srt = Path(Path(word_timing_file).parent, "captions.srt")
-        sentences, time_ranges = get_sentence_timings(json_load(word_timing_file))
+        sentences, time_ranges = get_sentences_with_timings(json_load(word_timing_file))
         write_srt_from_sentences_and_time_ranges(sentences, time_ranges, cap_srt)
         print(f"Rewrote {cap_srt}")
+
+
+def add_new_translations():
+    from helpers import webids_to_directories
+    from translate import write_translated_srt
+
+    web_ids = [
+        "neural-networks",
+        "gradient-descent",
+        "backpropagation",
+        "backpropagation-calculus",
+        "essence-of-calculus",
+        "divergence-and-curl",
+        "taylor-series",
+        "eulers-number",
+        "derivatives-and-transforms",
+        "derivatives",
+        "derivative-formulas-geometrically",
+        "integration",
+        "limits",
+        "implicit-differentiation",
+        "chain-rule-and-product-rule",
+        "area-and-slope",
+        "brachistochrone",
+        "higher-order-derivatives",
+        "vectors",
+        "span",
+        "linear-transformations",
+        "eigenvalues",
+        "determinant",
+        "matrix-multiplication",
+        "inverse-matrices",
+        "eola-preview",
+        "dot-products",
+        "3d-transformations",
+        "change-of-basis",
+        "cross-products",
+        "nonsquare-matrices",
+        "abstract-vector-spaces",
+        "cross-products-extended",
+        "cramers-rule",
+        "quick-eigen",
+        "fourier-series",
+        "differential-equations",
+        "eulers-formula-dynamically",
+        "matrix-exponents",
+        "pdes",
+        "heat-equation",
+        "hardest-problem",
+        "clacks",
+        "clacks-solution",
+        "clacks-via-light",
+        "fourier-transforms",
+        "clt",
+        "convolutions",
+        "hamming-codes",
+        "hamming-codes-2",
+        "sphere-area",
+        "basel-problem",
+        "prime-spirals",
+        "windmills",
+        "prism",
+        "refractive-index-questions",
+        "zeta",
+        "quaternions",
+        "newtons-fractal",
+        "shadows",
+        "wordle",
+        "groups-and-monsters",
+        "bayes-theorem",
+        "dandelin-spheres",
+        "pythagorean-triples",
+        "barber-pole-1",
+        "barber-pole-2",
+        "fractal-dimension",
+    ]
+    languages = ["Spanish", "Hindi", "Chinese", "French", "Russian"]
+    cap_dirs = webids_to_directories(web_ids)
+
+    n_chars = 0
+    for cap_dir in cap_dirs:
+        english_srt = Path(cap_dir, "english", "captions.srt")
+        with open(Path(cap_dir, "english", "transcript.txt")) as fp:
+            script = " ".join(fp.readlines())
+
+        for lang in languages:
+            lang_dir = Path(cap_dir, lang.lower())
+            trans_file = Path(lang_dir, "sentence_translations.json")
+            if not os.path.exists(trans_file):
+                n_chars += len(script)
+                print(trans_file)
+                # write_translated_srt(english_srt, lang)
+
+
+
+def fix_word_timings():
+    for timing_file in get_all_files_with_ending("word_timings.json"):
+        word_timings = json_load(timing_file)
+        words, starts, ends = zip(*word_timings)
+        starts = np.round(starts, 2)
+        ends = np.round(ends, 2)
+        new_timings = list(zip(words, starts, ends))
+        json_dump(new_timings, timing_file, indent=None)
 
 
 def update_sentence_timing_in_translation_files():
@@ -78,10 +181,18 @@ def update_sentence_timing_in_translation_files():
         if not os.path.exists(timing_file):
             continue
 
+
         # Get word timings
         word_timings = json_load(timing_file)
         sentences = [obj['input'] for obj in trans]
-        time_ranges = get_sentence_timings(word_timings, sentences)
+        if len(word_timings) == 0:
+            continue
+
+        try:
+            time_ranges = get_sentence_timings(word_timings, sentences)
+        except Exception as e:
+            print(f"Failed on {timing_file}\n\n{e}\n\n")
+            continue
 
         for obj, time_range in zip(trans, time_ranges):
             obj["time_range"] = time_range
@@ -97,13 +208,51 @@ def update_sentence_timing_in_translation_files():
 
 
 def regenerate_transcripts():
-    files = []
     for trans_file in get_all_translation_files():
         if is_fully_populated_translation(trans_file):
             try:
                 sentence_translations_to_srt(trans_file)
             except Exception as e:
                 print(f"Failed to convert {trans_file} to srt\n\n{e}\n\n")
+
+
+def remove_current_autocaptions():
+    youtube_api = get_youtube_api("/Users/grant/cs/api_keys/caption_uploading10.json")
+    from download import get_caption_languages
+    from upload import delete_captions
+    import random
+
+    videos_info = get_videos_information()
+    web_id_to_video_id = dict(zip(
+        videos_info["Website id"],
+        videos_info["Slug"],
+    ))
+    video_id_to_caption_languages = dict()
+
+    files = get_all_files_with_ending("auto_generated.srt")
+    random.shuffle(files)
+    for lang_srt in files:
+        lang_srt = Path(lang_srt)
+        language = lang_srt.parent.stem
+        lang_code = pycountry.languages.get(name=language).alpha_2
+        web_id = lang_srt.parent.parent.stem
+
+        if web_id not in web_id_to_video_id:
+            continue
+
+        video_id = web_id_to_video_id[web_id]
+
+        if any([file.endswith("_community.srt") for file in os.listdir(lang_srt.parent)]):
+            continue
+
+        if video_id not in video_id_to_caption_languages:
+            with temporary_message(f"Searching {web_id} languages"):
+                video_id_to_caption_languages[video_id] = get_caption_languages(video_id)
+
+        if lang_code not in video_id_to_caption_languages[video_id]:
+            continue
+
+        delete_captions(youtube_api, video_id, lang_code)
 
 
 def upload_all_titles():
