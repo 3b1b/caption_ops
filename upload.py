@@ -9,6 +9,7 @@ from googleapiclient.http import MediaFileUpload
 
 from helpers import urls_to_directories
 from helpers import temporary_message
+from helpers import get_language_code
 from helpers import json_load
 
 from download import get_caption_languages
@@ -148,10 +149,7 @@ def upload_all_new_captions(youtube_api, directory, video_id):
         language_dir = os.path.join(directory, language)
         if not os.path.isdir(language_dir):
             continue
-        lang_obj = pycountry.languages.get(name=language)
-        if lang_obj is None:
-            continue
-        lang_code = lang_obj.alpha_2
+        lang_code = get_language_code(language)
         caption_file = os.path.join(language_dir, "auto_generated.srt")
         if os.path.exists(caption_file) and not lang_code in existing_language_codes:
             upload_caption(
