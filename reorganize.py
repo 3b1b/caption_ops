@@ -5,6 +5,7 @@ from pathlib import Path
 import json
 import re
 import operator as op
+from pytube import YouTube
 
 from helpers import get_videos_information
 from helpers import nearest_string
@@ -25,6 +26,8 @@ from srt_ops import write_srt_from_sentences_and_time_ranges
 from sentence_timings import get_sentences_with_timings
 
 from upload import get_youtube_api
+from upload import upload_caption
+from download import find_mismatched_captions
 
 
 def is_fully_populated_translation(translation_file):
@@ -59,6 +62,17 @@ def get_all_files_with_ending(ending, root=CAPTIONS_DIRECTORY):
 
 def get_all_translation_files(root=CAPTIONS_DIRECTORY):
     return get_all_files_with_ending("sentence_translations.json", root)
+
+
+def update_all_mismatches():
+    # TODO
+    videos_info = get_videos_information()
+    urls = videos_info["Video URL"]
+    for url in urls[:-5:-1]:
+        if YouTube(url).author != "3Blue1Brown":
+            continue
+        for mismatch in find_mismatched_captions(url):
+            print(mismatch)
 
 
 def fix_new_captions():
