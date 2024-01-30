@@ -81,7 +81,7 @@ def write_srt_from_sentences_and_time_ranges(
     output_file_path,
     max_chars_per_segment=90,
 ):
-    punc = r'(?<=[.!?,:;])\s+|\.$|(?<=[।۔՝։።။។፡。！？])'
+    punc = r'(?<=[.!?,:;])\s+|\.$|(?<=[，।۔՝։።။។፡。！？])'
     mcps = max_chars_per_segment
 
     texts = []
