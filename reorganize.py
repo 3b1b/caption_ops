@@ -13,6 +13,7 @@ from srt_ops import srt_to_txt
 from helpers import temporary_message
 from helpers import json_load
 from helpers import json_dump
+from helpers import get_language_code
 from helpers import url_to_directory
 from helpers import extract_video_id
 from helpers import CAPTIONS_DIRECTORY
@@ -21,7 +22,6 @@ from helpers import SENTENCE_ENDINGS
 from translate import get_sentence_timings_from_srt
 from translate import get_sentence_translation_file
 from translate import sentence_translations_to_srt
-from translate import pycountry
 from translate import translate_sentences
 from srt_ops import write_srt_from_sentences_and_time_ranges
 
@@ -157,7 +157,7 @@ def remove_current_autocaptions():
     for lang_srt in files:
         lang_srt = Path(lang_srt)
         language = lang_srt.parent.stem
-        lang_code = pycountry.languages.get(name=language).alpha_2
+        lang_code = get_language_code(language)
         web_id = lang_srt.parent.parent.stem
 
         if web_id not in web_id_to_video_id:
@@ -189,7 +189,7 @@ def upload_all_titles():
         title = json_load(title_file)["translatedText"]
         language = Path(title_file).parent.stem
         web_id = Path(title_file).parent.parent.stem
-        language_code = pycountry.languages.get(name=language).alpha_2
+        language_code = get_language_code(language)
         upload_video_title(
             youtube_api=youtube_api,
             video_id=web_id_to_video_id[web_id],
@@ -307,7 +307,7 @@ def clean_broken_translations():
                 indices_to_fix = indices_to_fix.union({index - 1, index, index + 1})
         indices_to_fix = sorted([i for i in indices_to_fix if 0 <= i < len(trans)])
         en_sents = [trans[i]["input"] for i in indices_to_fix]
-        lang_code = pycountry.languages.get(name=Path(file).parent.stem).alpha_2
+        lang_code = get_language_code(Path(file).parent.stem)
 
         with temporary_message(f"Translating lines in {file} to {lang_code}"):
             tr_sents = [group["translatedText"] for group in translate_sentences(en_sents, lang_code)]

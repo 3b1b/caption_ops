@@ -1,5 +1,4 @@
 import os
-import pycountry
 from pathlib import Path
 from pytube import YouTube
 
@@ -9,6 +8,7 @@ from google.oauth2 import service_account
 from helpers import temporary_message
 from helpers import webids_to_directories
 from helpers import ensure_exists
+from helpers import get_language_code
 from helpers import json_load
 from helpers import json_dump
 from helpers import url_to_directory
@@ -59,7 +59,7 @@ def translate_sentences(
 ):
     translate_client = get_google_translate_client()
     translations = []
-    target_language_code = pycountry.languages.get(name=target_language).alpha_2
+    target_language_code = get_language_code(target_language)
     for n in range(0, len(src_sentences), chunk_size):
         translations.extend(translate_client.translate(
             src_sentences[n:n + chunk_size],
