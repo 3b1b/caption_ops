@@ -13,10 +13,12 @@ from srt_ops import srt_to_txt
 from helpers import temporary_message
 from helpers import json_load
 from helpers import json_dump
+from helpers import url_to_directory
+from helpers import extract_video_id
 from helpers import CAPTIONS_DIRECTORY
 from helpers import SENTENCE_ENDINGS
 
-from translate import generate_sentence_translations_with_timings, get_sentence_timings_from_srt
+from translate import get_sentence_timings_from_srt
 from translate import get_sentence_translation_file
 from translate import sentence_translations_to_srt
 from translate import pycountry
@@ -66,6 +68,7 @@ def get_all_translation_files(root=CAPTIONS_DIRECTORY):
 
 def update_all_mismatches():
     # TODO
+    youtube_api = get_youtube_api()
     videos_info = get_videos_information()
     urls = videos_info["Video URL"]
     for url in urls[:-5:-1]:
