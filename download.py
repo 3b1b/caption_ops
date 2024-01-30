@@ -2,19 +2,24 @@ import os
 from pathlib import Path
 import pysrt
 import numpy as np
+import pycountry
 
 from pytube import YouTube
 from youtube_transcript_api import YouTubeTranscriptApi
 
-from helpers import temporary_message
+from helpers import extract_video_id
 from helpers import get_videos_information
-from helpers import to_snake_case
 from helpers import get_caption_directory
+from helpers import temporary_message
+from helpers import to_snake_case
 from helpers import urls_to_directories
 from helpers import get_web_id_to_video_id
+from helpers import get_language_code
+from helpers import url_to_directory
 
 from srt_ops import write_srt
 from srt_ops import sub_rip_time_to_seconds
+
 
 def download_youtube_audio(url, directory, name="original_audio"):
     yt = YouTube(url)
@@ -25,9 +30,17 @@ def download_youtube_audio(url, directory, name="original_audio"):
     return result
 
 
+def clean_srt_segment_text(text):
+    return "\n".join([line.strip() for line in text.split("\n") if line.split()])
+
+
 def write_yt_transcript_as_srt(transcript, file_path, quiet=False):
     segments = [
-        (s['text'], s['start'], s['start'] + s['duration'])
+        (
+            clean_srt_segment_text(s['text']),
+            s['start'],
+            s['start'] + s['duration']
+        )
         for s in transcript.fetch()
     ]
     write_srt(segments, file_path)
@@ -65,28 +78,27 @@ def sync_from_youtube():
 
 def does_yt_transcript_match_srt(yt_transcript, srt_file):
     online_segments = yt_transcript.fetch()
-    online_texts = [s['text'].strip() for s in online_segments]
-    online_times = [[s['start'], s['start'] + s['duration']] for s in online_segments]
-
     local_segments = pysrt.open(str(srt_file))
-    local_texts = [s.text.strip() for s in local_segments]
-    local_times = [
-        list(map(sub_rip_time_to_seconds, [s.start, s.end]))
-        for s in local_segments
-    ]
 
     if len(online_segments) != len(local_segments):
         return False
 
-    text_matches = all([s1 == s2 for s1, s2 in zip(online_texts, local_texts)])
-    time_matches = np.isclose(online_times, local_times, atol=0.1).all()
+    # Check text
+    online_texts = [clean_srt_segment_text(s['text']) for s in online_segments]
+    local_texts = [clean_srt_segment_text(s.text) for s in local_segments]
+    if any([s1 != s2 for s1, s2 in zip(online_texts, local_texts)]):
+        return False
 
-    return text_matches and time_matches
+    # Check timings
+    online_times = [[s['start'], s['start'] + s['duration']] for s in online_segments]
+    local_times = [
+        list(map(sub_rip_time_to_seconds, [s.start, s.end]))
+        for s in local_segments
+    ]
+    return np.isclose(online_times, local_times, atol=0.1).all()
 
 
 def local_captions_match_youtube(srt_file):
-    # TODO, Write a version of this that looks through one directory
-    # at a time, calling YouTubeTranscriptApi.list_transcripts only as needed
     srt_file = Path(srt_file)
     language = srt_file.parent.stem
     web_id = srt_file.parent.parent.stem
@@ -100,6 +112,57 @@ def local_captions_match_youtube(srt_file):
     # Check YouTube transcript to str similarity
     transcript = transcripts[languages.index(language)]
     return does_yt_transcript_match_srt(transcript, srt_file)
+
+
+def find_mismatched_captions(video_url):
+    """
+    Searches for all local caption files where the online
+    version does not match. Defaults to checking the community
+    version in any local language directories
+    """
+    cap_dir = Path(url_to_directory(video_url))
+    web_id = cap_dir.stem
+    video_id = extract_video_id(video_url)
+
+    with temporary_message(f"Pulling {web_id} transcripts"):
+        transcripts = list(YouTubeTranscriptApi.list_transcripts(video_id))
+
+    local_languages = [
+        lang
+        for lang in os.listdir(cap_dir)
+        if os.path.isdir(Path(cap_dir, lang))
+    ]
+    language_code_to_transcript = {
+        t.language_code : t
+        for t in transcripts
+    }
+    mismatches = []
+    for language in local_languages:
+        language_code = get_language_code(language)
+        lang_dir = Path(cap_dir, language)
+        srts = [os.path.join(lang_dir, f) for f in os.listdir(lang_dir) if f.endswith(".srt")]
+        if not srts:
+            continue
+        # If any community contributions are available, pick
+        community_contributions = [f for f in srts if f.endswith("_community.srt")]
+        if community_contributions:
+            default_srt = community_contributions[0]
+        else:
+            default_srt = srts[0]
+
+        # Check for matches against the online transcripts
+        online_transcript = language_code_to_transcript.get(language_code, None)
+        if online_transcript is None:
+            mismatches.append(default_srt)
+            continue
+        any_matches = any((
+            does_yt_transcript_match_srt(online_transcript, srt)
+            for srt in srts
+        ))
+        if not any_matches:
+            mismatches.append(default_srt)
+
+    return mismatches
 
 
 # Function to download captions as SRT files
