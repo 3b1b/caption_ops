@@ -5,6 +5,7 @@ import os
 import sys
 import re
 import json
+import pycountry
 from functools import lru_cache
 from contextlib import contextmanager
 
@@ -63,6 +64,12 @@ def get_sentences(full_text, end_marks=SENTENCE_ENDINGS):
             re.findall(end_marks, full_text),
         )
     ]
+
+
+def get_language_code(language):
+    if language.lower() == "hebrew":
+        return 'iw'
+    return pycountry.languages.get(name=language).alpha_2
 
 
 # Related to video file organization
