@@ -1,6 +1,5 @@
 import Levenshtein
 import numpy as np
-import csv
 import os
 import sys
 import re
@@ -17,6 +16,7 @@ from pytube.extract import video_id as extract_video_id
 CAPTIONS_DIRECTORY = "/Users/grant/cs/captions"
 AUDIO_DIRECTORY = "/Users/grant/3Blue1Brown Dropbox/3Blue1Brown/audio_tracks"
 SENTENCE_ENDINGS = r'(?<=[.!?])\s+|\.$|(?<=[।۔՝։።။។፡。！？])'
+PUNCTUATION_PATTERN = r'(?<=[.!?,:;])\s+|\.$|(?<=[，।۔՝։።။។፡。！？])'
 
 @contextmanager
 def temporary_message(message):

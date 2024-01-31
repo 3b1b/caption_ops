@@ -7,6 +7,7 @@ import datetime
 
 from helpers import interpolate
 from helpers import SENTENCE_ENDINGS
+from helpers import PUNCTUATION_PATTERN
 
 
 def format_time(seconds):
@@ -81,7 +82,6 @@ def write_srt_from_sentences_and_time_ranges(
     output_file_path,
     max_chars_per_segment=90,
 ):
-    punc = r'(?<=[.!?,:;])\s+|\.$|(?<=[，।۔՝։።။។፡。！？])'
     mcps = max_chars_per_segment
 
     texts = []
@@ -103,7 +103,7 @@ def write_srt_from_sentences_and_time_ranges(
             best_cut = lh + best_step
             punc_indices, space_indices = [
                 [lh + half + match.end() for match in regex.finditer(pattern, sentence[lh + half:rh])]
-                for pattern in [punc, " "]
+                for pattern in [PUNCTUATION_PATTERN, " "]
             ]
             if rh >= n_chars:
                 # We're at the end of a sentence
