@@ -5,7 +5,7 @@ from pathlib import Path
 
 from helpers import url_to_directory
 from helpers import ensure_exists
-from helpers import get_videos_information
+from helpers import get_all_video_urls
 from helpers import AUDIO_DIRECTORY
 
 from download import download_youtube_audio
@@ -45,9 +45,7 @@ def write_all_transcription_files(model, audio_file, caption_path):
 
 
 def recaption_everything():
-    videos_info = get_videos_information()
-    urls = videos_info["Video URL"]
-    web_ids = videos_info["Website id"]
+    urls = get_all_video_urls()
     model = load_whisper_model()
 
     for url in urls[::-1]:

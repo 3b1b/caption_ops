@@ -8,12 +8,12 @@ import json
 import pycountry
 from functools import lru_cache
 from contextlib import contextmanager
+from pathlib import Path
 
 from pytube import YouTube
 from pytube.extract import video_id as extract_video_id
 
 
-ALL_VIDEOS_FILE = "/Users/grant/Downloads/all_videos.csv"
 CAPTIONS_DIRECTORY = "/Users/grant/cs/captions"
 AUDIO_DIRECTORY = "/Users/grant/3Blue1Brown Dropbox/3Blue1Brown/audio_tracks"
 SENTENCE_ENDINGS = r'(?<=[.!?])\s+|\.$|(?<=[।۔՝։።။។፡。！？])'
@@ -72,7 +72,8 @@ def get_language_code(language):
     return pycountry.languages.get(name=language).alpha_2
 
 
-# Related to video file organization
+# Simple json wrappers
+
 
 def json_load(filename):
     with open(filename, 'r', encoding='utf-8') as fp:
@@ -89,74 +90,94 @@ def json_dump(obj, filename, indent=1, ensure_ascii=False):
         )
     return result
 
+
+
+# Related to video file organization
+
+
+def get_all_files_with_ending(ending, root=CAPTIONS_DIRECTORY):
+    result = []
+    for root, dirs, files in os.walk(root):
+        for file in files:
+            path = os.path.join(root, file)
+            if path.endswith(ending):
+                result.append(path)
+    return result
+
+
 @lru_cache()
-def get_videos_information(filename=ALL_VIDEOS_FILE):
-    with open(filename, mode='r', newline='', encoding='utf-8') as file:
-        reader = csv.DictReader(file)
-        columns = {}
-        for row in reader:
-            for header, value in row.items():
-                columns.setdefault(header, []).append(value)
-        return columns
+def get_video_id_to_caption_directory_map():
+    result = dict()
+    for file in get_all_files_with_ending("video_url.txt"):
+        with open(file, 'r') as fp:
+            url = fp.read()
+        result[extract_video_id(url)] = os.path.split(file)[0]
+    return result
 
 
-def get_video_id_to_web_id():
-    videos_info = get_videos_information()
-    return dict(zip(
-        videos_info["Slug"],
-        videos_info["Website id"]
-    ))
+def get_web_id_to_caption_directory_map():
+    root = CAPTIONS_DIRECTORY
+    result = dict()
+    for year in os.listdir(root):
+        year_dir = os.path.join(root, year)
+        if not os.path.isdir(year_dir):
+            continue
+        for web_id in os.listdir(year_dir):
+            result[web_id] = os.path.join(year_dir, web_id)
+    return result
 
 
-def get_web_id_to_video_id():
-    videos_info = get_videos_information()
-    return dict(zip(
-        videos_info["Website id"],
-        videos_info["Slug"],
-    ))
+def get_video_id_to_web_id_map():
+    vid_to_dir = get_video_id_to_caption_directory_map()
+    return {
+        vid: Path(path).stem
+        for vid, path in vid_to_dir.items()
+    }
 
 
-def get_caption_directory(year, webid, root=CAPTIONS_DIRECTORY):
-    return os.path.join(root, str(year), webid)
+def get_web_id_to_video_id_map():
+    vid_to_dir = get_video_id_to_caption_directory_map()
+    return {
+        Path(path).stem: vid
+        for vid, path in vid_to_dir.items()
+    }
 
 
-def get_audio_directory(year, webid, root=AUDIO_DIRECTORY):
-    return get_caption_directory(year, webid, root)
+def get_all_video_urls():
+    vid_to_dir = get_video_id_to_caption_directory_map()
+    vids = sorted(
+        vid_to_dir.keys(),
+        key=lambda k: vid_to_dir[k]
+    )
+    urls = [f"https://youtu.be/{vid}" for vid in vids]
+    return urls[::-1]
 
 
-def url_to_directory(video_url, root=CAPTIONS_DIRECTORY, videos_info=None):
-    if videos_info is None:
-        videos_info = get_videos_information()
+def url_to_directory(video_url, root=None):
+    vid_to_dir = get_video_id_to_caption_directory_map()
+    vid = extract_video_id(video_url)
 
-    video_id = extract_video_id(video_url)
-    if video_id in videos_info["Slug"]:
-        index = videos_info["Slug"].index(video_id)
-        year = videos_info["Date posted"][index].split("/")[-1]
-        web_id = videos_info["Website id"][index]
+    if vid in vid_to_dir:
+        directory = vid_to_dir[vid]
     else:
         yt = YouTube(video_url)
         year = yt.publish_date.year
-        web_id = to_snake_case(yt.title.split("|")[0].strip())
-
-    # Directory
-    return ensure_exists(get_caption_directory(year, web_id, root=root))
-
-
-def urls_to_directories(video_urls, root=CAPTIONS_DIRECTORY):
-    videos_info = get_videos_information()
-    return [
-        url_to_directory(url, root, videos_info)
-        for url in video_urls
-    ]
+        title_words = [w.lower() for w in yt.title.split("|")[0].split(" ")]
+        title_words = list(filter(lambda w: w not in {"a", "the"}, title_words))
+        web_id = "_".join(title_words[:3])
+        directory = ensure_exists(os.path.join(CAPTIONS_DIRECTORY, str(year), web_id))
+        with open(os.path.join(directory, "video_url.txt"), 'w') as fp:
+            fp.write(f"https://youtu.be/{vid}")
+        vid_to_dir[vid] = directory
+    if root is not None:
+        directory = directory.replace(CAPTIONS_DIRECTORY, root)
+    return directory
 
 
-def webids_to_directories(web_ids, root=CAPTIONS_DIRECTORY):
-    video_info = get_videos_information()
-    web_id_to_year = {
-        web_id: date.split("/")[-1]
-        for web_id, date in zip(video_info["Website id"], video_info["Date posted"])
-    }
-    return [
-        get_caption_directory(web_id_to_year[web_id], web_id, root=root)
-        for web_id in web_ids
-    ]
+def urls_to_directories(video_urls):
+    return [url_to_directory(url) for url in video_urls]
+
+
+def webids_to_directories(web_ids):
+    web_id_to_dir = get_web_id_to_caption_directory_map()
+    return [web_id_to_dir[web_id] for web_id in web_ids]

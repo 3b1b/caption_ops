@@ -7,7 +7,8 @@ import re
 import operator as op
 from pytube import YouTube
 
-from helpers import get_videos_information
+from helpers import get_all_video_urls
+from helpers import get_web_id_to_video_id_map
 from helpers import nearest_string
 from srt_ops import srt_to_txt
 from helpers import temporary_message
@@ -15,7 +16,7 @@ from helpers import json_load
 from helpers import json_dump
 from helpers import get_language_code
 from helpers import url_to_directory
-from helpers import extract_video_id
+from helpers import get_all_files_with_ending
 from helpers import CAPTIONS_DIRECTORY
 from helpers import SENTENCE_ENDINGS
 
@@ -28,7 +29,6 @@ from srt_ops import write_srt_from_sentences_and_time_ranges
 from sentence_timings import get_sentences_with_timings
 
 from upload import get_youtube_api
-from upload import upload_caption
 from download import find_mismatched_captions
 
 
@@ -52,16 +52,6 @@ def merge_split_decimals(text):
     return re.sub(pattern, r'\1.\2', text)
 
 
-def get_all_files_with_ending(ending, root=CAPTIONS_DIRECTORY):
-    result = []
-    for root, dirs, files in os.walk(root):
-        for file in files:
-            path = os.path.join(root, file)
-            if path.endswith(ending):
-                result.append(path)
-    return result
-
-
 def get_all_translation_files(root=CAPTIONS_DIRECTORY):
     return get_all_files_with_ending("sentence_translations.json", root)
 
@@ -69,8 +59,7 @@ def get_all_translation_files(root=CAPTIONS_DIRECTORY):
 def update_all_mismatches():
     # TODO
     youtube_api = get_youtube_api()
-    videos_info = get_videos_information()
-    urls = videos_info["Video URL"]
+    urls = get_all_video_urls()
     for url in urls[:-5:-1]:
         if YouTube(url).author != "3Blue1Brown":
             continue
@@ -84,6 +73,18 @@ def fix_new_captions():
         sentences, time_ranges = get_sentences_with_timings(json_load(word_timing_file))
         write_srt_from_sentences_and_time_ranges(sentences, time_ranges, cap_srt)
         print(f"Rewrote {cap_srt}")
+
+
+def fix_url_files():
+    suffix = "video_information.md"
+    for file in get_all_files_with_ending(suffix):
+        with open(file, 'r') as fp:
+            line = fp.readline()
+        url = line[len("[Video link]("):-1]
+        url_file = file.replace(suffix, "video_url.txt")
+        with open(url_file, 'w') as fp:
+            fp.write(url)
+        os.remove(file)
 
 
 def fix_word_timings():
@@ -145,11 +146,7 @@ def remove_current_autocaptions():
     from upload import delete_captions
     import random
 
-    videos_info = get_videos_information()
-    web_id_to_video_id = dict(zip(
-        videos_info["Website id"],
-        videos_info["Slug"],
-    ))
+    web_id_to_video_id = get_web_id_to_video_id_map()
     video_id_to_caption_languages = dict()
 
     files = get_all_files_with_ending("auto_generated.srt")
@@ -179,11 +176,7 @@ def remove_current_autocaptions():
 
 
 def upload_all_titles():
-    videos_info = get_videos_information()
-    web_id_to_video_id = dict(zip(
-        videos_info["Website id"],
-        videos_info["Slug"],
-    ))
+    web_id_to_video_id = get_web_id_to_video_id_map()
     youtube_api = get_youtube_api()
     for title_file in get_all_files_with_ending("title.json"):
         title = json_load(title_file)["translatedText"]

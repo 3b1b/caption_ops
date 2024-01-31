@@ -4,13 +4,13 @@ import googleapiclient.discovery
 import googleapiclient.errors
 import html
 
-from pytube import YouTube
 from pathlib import Path
 
 from googleapiclient.http import MediaFileUpload
 from googleapiclient.errors import HttpError
 
-from helpers import urls_to_directories
+from helpers import extract_video_id
+from helpers import url_to_directory
 from helpers import temporary_message
 from helpers import get_language_code
 from helpers import json_load
@@ -167,10 +167,9 @@ def upload_all_new_captions(youtube_api, directory, video_id):
 
 def upload_new_captions_multiple_videos(video_urls):
     youtube_api = get_youtube_api()
-    caption_directories = urls_to_directories(video_urls)
-    for video_url, caption_dir in zip(video_urls, caption_directories):
+    for video_url in video_urls:
         upload_all_new_captions(
-            youtube_api,
-            caption_dir,
-            YouTube(video_url).video_id,
+            youtube_api=youtube_api,
+            directory=url_to_directory(video_url),
+            video_id=extract_video_id(video_url),
         )

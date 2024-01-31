@@ -2,18 +2,16 @@ import os
 from pathlib import Path
 import pysrt
 import numpy as np
-import pycountry
 
 from pytube import YouTube
 from youtube_transcript_api import YouTubeTranscriptApi
 
 from helpers import extract_video_id
-from helpers import get_videos_information
-from helpers import get_caption_directory
+from helpers import get_video_id_to_caption_directory_map
 from helpers import temporary_message
 from helpers import to_snake_case
 from helpers import urls_to_directories
-from helpers import get_web_id_to_video_id
+from helpers import get_web_id_to_video_id_map
 from helpers import get_language_code
 from helpers import url_to_directory
 
@@ -65,13 +63,13 @@ def get_caption_languages(video_id):
 
 
 def sync_from_youtube():
-    video_urls = []
-    directories = urls_to_directories(video_urls)
-    for video_url, caption_dir in zip(video_urls, directories):
-        video_id = YouTube(video_url).video_id
+    urls = []
+    for url in urls:
+        video_id = extract_video_id(url)
+        cap_dir = url_to_directory(url)
         transcripts = YouTubeTranscriptApi.list_transcripts(video_id)
         en_trans = [t for t in transcripts if t.language_code == "en"][0]
-        caption_file = Path(caption_dir, "english.srt")
+        caption_file = Path(cap_dir, "english.srt")
         write_yt_transcript_as_srt(en_trans, caption_file)
 
 
@@ -101,7 +99,7 @@ def local_captions_match_youtube(srt_file):
     srt_file = Path(srt_file)
     language = srt_file.parent.stem
     web_id = srt_file.parent.parent.stem
-    video_id = get_web_id_to_video_id()[web_id]
+    video_id = get_web_id_to_video_id_map()[web_id]
 
     transcripts = list(YouTubeTranscriptApi.list_transcripts(video_id))
     languages = [t.language.lower() for t in transcripts]
@@ -189,15 +187,9 @@ def download_captions(video_id, directory, suffix="community"):
 
 
 def download_all_captions():
-    columns = get_videos_information()
-    video_ids = columns["Slug"]
-    web_ids = columns["Website id"]
-    dates = columns["Date posted"]
-
-    for webid, date, video_id in zip(web_ids, dates, video_ids):
-        year = date.split("/")[-1]
-        directory = get_caption_directory(year, webid)
-        download_captions(video_id, directory)
+    vid_to_dir = get_video_id_to_caption_directory_map()
+    for vid, directory in vid_to_dir.items():
+        download_captions(vid, directory)
 
 
 def download_video_title_and_description(youtube_api, video_id):

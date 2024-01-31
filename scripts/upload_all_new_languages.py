@@ -2,7 +2,7 @@ import time
 import datetime
 
 from helpers import url_to_directory
-from helpers import get_videos_information
+from helpers import get_all_video_urls
 from helpers import extract_video_id
 
 from upload import get_youtube_api
@@ -10,13 +10,7 @@ from upload import upload_all_new_captions
 
 def upload_all_new_languages():
     youtube_api = get_youtube_api()
-    videos_info = get_videos_information()
-    urls = videos_info["Video URL"]
-    web_ids = videos_info["Website id"]
-
-    # Not on my channel
-    urls.remove(urls[web_ids.index('feynmans-lost-lecture')])
-
+    urls = get_all_video_urls()
     while urls:
         url = urls.pop()
         video_id = extract_video_id(url)

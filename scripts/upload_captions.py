@@ -3,7 +3,7 @@ import argparse
 from pathlib import Path
 
 
-from helpers import get_web_id_to_video_id
+from helpers import get_web_id_to_video_id_map
 from upload import get_youtube_api
 from upload import upload_caption
 
@@ -17,5 +17,5 @@ if __name__ == "__main__":
     caption_file = args.caption_file
 
     web_id = Path(caption_file).parent.parent.stem
-    video_id = get_web_id_to_video_id()[web_id]
+    video_id = get_web_id_to_video_id_map()[web_id]
     upload_caption(youtube_api, video_id, caption_file, replace=True)
