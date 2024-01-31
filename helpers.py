@@ -130,12 +130,16 @@ def url_to_directory(video_url, root=None):
         title_words = list(filter(lambda w: w not in {"a", "the"}, title_words))
         web_id = "_".join(title_words[:3])
         directory = Path(CAPTIONS_DIRECTORY, str(year), web_id)
-        ensure_exists(directory.parent)
+        if "shorts" in video_url:
+            directory = Path(directory, "shorts")
+        ensure_exists(directory)
+        # Save file containing the video url here so the
+        # association can be found later.
         with open(Path(directory, "video_url.txt"), 'w') as fp:
-            fp.write(f"https://youtu.be/{vid}")
+            fp.write(video_url)
         get_video_id_to_caption_directory_map.cache_clear()
     if root is not None:
-        directory = directory.replace(CAPTIONS_DIRECTORY, root)
+        directory = str(directory).replace(CAPTIONS_DIRECTORY, root)
     return directory
 
 
