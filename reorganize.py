@@ -5,17 +5,14 @@ from pathlib import Path
 import json
 import re
 import operator as op
-from pytube import YouTube
 
 from helpers import get_all_video_urls
 from helpers import get_web_id_to_video_id_map
-from helpers import nearest_string
 from srt_ops import srt_to_txt
 from helpers import temporary_message
 from helpers import json_load
 from helpers import json_dump
 from helpers import get_language_code
-from helpers import url_to_directory
 from helpers import get_all_files_with_ending
 from helpers import CAPTIONS_DIRECTORY
 from helpers import SENTENCE_ENDING_PATTERN
@@ -27,6 +24,7 @@ from translate import translate_sentences
 from srt_ops import write_srt_from_sentences_and_time_ranges
 
 from sentence_timings import get_sentences_with_timings
+from sentence_timings import get_sentence_timings
 
 from upload import get_youtube_api
 from download import find_mismatched_captions
@@ -60,31 +58,17 @@ def update_all_mismatches():
     # TODO
     youtube_api = get_youtube_api()
     urls = get_all_video_urls()
-    for url in urls[:-5:-1]:
-        if YouTube(url).author != "3Blue1Brown":
-            continue
+    for url in urls:
         for mismatch in find_mismatched_captions(url):
             print(mismatch)
 
 
 def fix_new_captions():
     for word_timing_file in get_all_files_with_ending("word_timings.json"):
-        cap_srt = Path(Path(word_timing_file).parent, "captions.srt")
+        cap_srt = Path(word_timing_file).parent.joinpath("captions.srt")
         sentences, time_ranges = get_sentences_with_timings(json_load(word_timing_file))
         write_srt_from_sentences_and_time_ranges(sentences, time_ranges, cap_srt)
         print(f"Rewrote {cap_srt}")
-
-
-def fix_url_files():
-    suffix = "video_information.md"
-    for file in get_all_files_with_ending(suffix):
-        with open(file, 'r') as fp:
-            line = fp.readline()
-        url = line[len("[Video link]("):-1]
-        url_file = file.replace(suffix, "video_url.txt")
-        with open(url_file, 'w') as fp:
-            fp.write(url)
-        os.remove(file)
 
 
 def fix_word_timings():
@@ -105,14 +89,13 @@ def update_sentence_timing_in_translation_files():
         if not os.path.exists(timing_file):
             continue
 
-
         # Get word timings
         word_timings = json_load(timing_file)
-        sentences = [obj['input'] for obj in trans]
         if len(word_timings) == 0:
             continue
 
         try:
+            sentences = [obj['input'] for obj in trans]
             time_ranges = get_sentence_timings(word_timings, sentences)
         except Exception as e:
             print(f"Failed on {timing_file}\n\n{e}\n\n")
@@ -138,41 +121,6 @@ def regenerate_transcripts():
                 sentence_translations_to_srt(trans_file)
             except Exception as e:
                 print(f"Failed to convert {trans_file} to srt\n\n{e}\n\n")
-
-
-def remove_current_autocaptions():
-    youtube_api = get_youtube_api("/Users/grant/cs/api_keys/caption_uploading10.json")
-    from download import get_caption_languages
-    from upload import delete_captions
-    import random
-
-    web_id_to_video_id = get_web_id_to_video_id_map()
-    video_id_to_caption_languages = dict()
-
-    files = get_all_files_with_ending("auto_generated.srt")
-    random.shuffle(files)
-    for lang_srt in files:
-        lang_srt = Path(lang_srt)
-        language = lang_srt.parent.stem
-        lang_code = get_language_code(language)
-        web_id = lang_srt.parent.parent.stem
-
-        if web_id not in web_id_to_video_id:
-            continue
-
-        video_id = web_id_to_video_id[web_id]
-
-        if any([file.endswith("_community.srt") for file in os.listdir(lang_srt.parent)]):
-            continue
-
-        if video_id not in video_id_to_caption_languages:
-            with temporary_message(f"Searching {web_id} languages"):
-                video_id_to_caption_languages[video_id] = get_caption_languages(video_id)
-
-        if lang_code not in video_id_to_caption_languages[video_id]:
-            continue
-
-        delete_captions(youtube_api, video_id, lang_code)
 
 
 def upload_all_titles():
@@ -291,9 +239,7 @@ def clean_broken_translations():
     for file in broken_files:
         if Path(file).parent.parent.stem.startswith("ldm"):
             continue
-        with open(file, 'r') as fp:
-            trans = json.load(fp)
-
+        trans = json_load(file)
         indices_to_fix = set()
         for index, group in enumerate(trans):
             if group["input"] and not group["translatedText"]:
@@ -310,50 +256,6 @@ def clean_broken_translations():
 
         with open(file, 'w') as fp:
             json.dump(trans, fp, indent=1, ensure_ascii=False)
-
-
-def move_transcriptions(
-    curr_transcript_dir,
-    target_transcript_dir,
-    titles,
-    years,
-    webids,
-    urls
-):
-    # Copy and rename files from old to new
-    stems = os.listdir(curr_transcript_dir)
-    threshold = 5
-
-    for title, year, webid, url in zip(titles, years, webids, urls):
-        # Find closest name
-        stem, dist = nearest_string(title, stems)
-        if dist > threshold:
-            print(f"No video found for {year}/{title}")
-            continue
-
-        # Prepare new path
-        curr_path = Path(curr_transcript_dir, stem)
-        target_path = Path(target_transcript_dir, str(year), webid)
-        if not os.path.exists(target_path):
-            os.makedirs(target_path)
-
-        # Copy over files
-        name_pairs = [
-            ("plain_text.txt", "english.txt"),
-            ("subtitles.srt", "english.srt"),
-            ("audio.mp4", "original_audio.mp4"),
-        ]
-        for name1, name2 in name_pairs:
-            try:
-                shutil.copy(
-                    Path(curr_path, name1),
-                    Path(target_path, name2),
-                )
-            except FileNotFoundError:
-                print(f"No file {curr_path}/plain_text.txt")
-
-        with open(Path(target_path, "video_information.md"), "w", encoding='utf-8') as file:
-            file.write(f"[Video link]({url})")
 
 
 def create_ordered_videos(output_file, videos, webids, dates, categories):
@@ -377,12 +279,5 @@ def move_audio_files(src_dir, trg_dir, ext=".mp4"):
 
 
 def all_srt_to_txt():
-    src_dir = CAPTIONS_DIRECTORY
-    for root, dirs, files in os.walk(src_dir):
-        for file in files:
-            if file.endswith("english.srt"):
-                srt_to_txt(Path(root, file))
-
-
-def test():
-    srt_file = "/Users/grant/cs/captions/2023/prism/english.srt"
+    for file in get_all_files_with_ending(os.path.join("english", "captions.srt")):
+        srt_to_txt(file)
