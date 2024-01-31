@@ -115,6 +115,30 @@ def get_video_id_to_caption_directory_map():
     return result
 
 
+def url_to_directory(video_url, root=None):
+    vid = extract_video_id(video_url)
+
+    vid_to_dir = get_video_id_to_caption_directory_map()
+    if vid in vid_to_dir:
+        directory = vid_to_dir[vid]
+    else:
+        # Construct a path to associate with this video,
+        # and save to it a file with the url
+        yt = YouTube(video_url)
+        year = yt.publish_date.year
+        title_words = [w.lower() for w in yt.title.split("|")[0].split(" ")]
+        title_words = list(filter(lambda w: w not in {"a", "the"}, title_words))
+        web_id = "_".join(title_words[:3])
+        directory = Path(CAPTIONS_DIRECTORY, str(year), web_id)
+        ensure_exists(directory.parent)
+        with open(Path(directory, "video_url.txt"), 'w') as fp:
+            fp.write(f"https://youtu.be/{vid}")
+        get_video_id_to_caption_directory_map.cache_clear()
+    if root is not None:
+        directory = directory.replace(CAPTIONS_DIRECTORY, root)
+    return directory
+
+
 def get_web_id_to_caption_directory_map():
     root = CAPTIONS_DIRECTORY
     result = dict()
@@ -151,30 +175,6 @@ def get_all_video_urls():
     )
     urls = [f"https://youtu.be/{vid}" for vid in vids]
     return urls[::-1]
-
-
-def url_to_directory(video_url, root=None):
-    vid = extract_video_id(video_url)
-
-    vid_to_dir = get_video_id_to_caption_directory_map()
-    if vid in vid_to_dir:
-        directory = vid_to_dir[vid]
-    else:
-        # Construct a path to associate with this video,
-        # and save to it a file with the url
-        yt = YouTube(video_url)
-        year = yt.publish_date.year
-        title_words = [w.lower() for w in yt.title.split("|")[0].split(" ")]
-        title_words = list(filter(lambda w: w not in {"a", "the"}, title_words))
-        web_id = "_".join(title_words[:3])
-        directory = Path(CAPTIONS_DIRECTORY, str(year), web_id)
-        ensure_exists(directory.parent)
-        with open(Path(directory, "video_url.txt"), 'w') as fp:
-            fp.write(f"https://youtu.be/{vid}")
-        get_video_id_to_caption_directory_map.cache_clear()
-    if root is not None:
-        directory = directory.replace(CAPTIONS_DIRECTORY, root)
-    return directory
 
 
 def webids_to_directories(web_ids):
