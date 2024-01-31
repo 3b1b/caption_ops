@@ -27,21 +27,26 @@ from upload import upload_caption
 from upload import upload_all_new_captions
 
 
-def write_all_transcription_files(model, audio_file, caption_path):
-    parent = Path(caption_path).parent
-    whisper_srt_path = Path(parent, "whisper_captions.srt")
-    timing_file = Path(parent, "word_timings.json")
+def write_all_transcription_files(
+    model, audio_file,
+    captions_path,
+    whisper_captions_name="whisper_captions.srt",
+    word_timings_file_name="word_timings.json"
+):
+    parent = Path(captions_path).parent
+    whisper_srt_path = Path(parent, whisper_captions_name)
+    timing_file_path = Path(parent, word_timings_file_name)
 
     # Run whisper
     transcription = transcribe_file(model, str(audio_file))
     # Save the srt that whisper generates
     write_whisper_srt(transcription, whisper_srt_path)
     # Save the times for each individual word
-    word_timings = save_word_timings(transcription, timing_file)
+    word_timings = save_word_timings(transcription, timing_file_path)
     # Write a better srt based on those word timeings
-    words_with_timings_to_srt(word_timings, caption_path)
+    words_with_timings_to_srt(word_timings, captions_path)
     # Write the transcription in plain text
-    srt_to_txt(caption_path)
+    srt_to_txt(captions_path)
 
 
 def recaption_everything():
@@ -76,12 +81,12 @@ def auto_caption(video_url, upload=True):
 
     # Transcribe
     en_dir = ensure_exists(Path(caption_dir, "english"))
-    caption_path = Path(en_dir, "captions.srt")
+    captions_path = Path(en_dir, "captions.srt")
     model = load_whisper_model()
-    write_all_transcription_files(model, audio_file, caption_path)
+    write_all_transcription_files(model, audio_file, captions_path)
 
     # Translate
-    translate_to_multiple_languages(caption_path, languages=TARGET_LANGUAGES)
+    translate_to_multiple_languages(captions_path, languages=TARGET_LANGUAGES)
     translate_title_to_multiple_languages(video_url, languages=TARGET_LANGUAGES)
 
     # Upload the results
@@ -89,9 +94,9 @@ def auto_caption(video_url, upload=True):
         video_id = YouTube(video_url).video_id
         # Upload english
         try:
-            upload_caption(youtube_api, video_id, caption_path, replace=True)
+            upload_caption(youtube_api, video_id, captions_path, replace=True)
         except Exception as e:
-            print(f"Failed to upload {caption_path}\n\n{e}\n\n")
+            print(f"Failed to upload {captions_path}\n\n{e}\n\n")
         # Upload all other languages
         upload_all_new_captions(youtube_api, caption_dir, video_id)
 
