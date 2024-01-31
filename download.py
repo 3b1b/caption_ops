@@ -21,9 +21,8 @@ from srt_ops import write_srt
 from srt_ops import sub_rip_time_to_seconds
 
 
-def download_youtube_audio(url, directory, name="original_audio"):
+def download_youtube_audio(url, file_path):
     yt = YouTube(url)
-    file_path = Path(directory, name).with_suffix(".mp4")
     with temporary_message(f"Downloading to {file_path}"):
         yt = yt.streams.filter(only_audio=True, file_extension="mp4").order_by("abr").desc()
         result = yt.first().download(filename=str(file_path))
