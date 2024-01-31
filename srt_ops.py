@@ -58,7 +58,7 @@ def write_srt(segments, file_name):
 def srt_to_txt(srt_file, txt_file_name="transcript"):
     subs = pysrt.open(srt_file)
     text = " ".join([sub.text.replace("\n", " ") for sub in subs])
-    if not text.endswith("."):
+    if not re.findall("[.!?]$", text):
         text += "."
 
     txt_path = Path(Path(srt_file).parent, txt_file_name).with_suffix(".txt")
