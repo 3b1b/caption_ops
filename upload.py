@@ -18,10 +18,12 @@ from helpers import json_load
 from download import get_caption_languages
 
 
-SECRETS_FILE = os.getenv('YOUTUBE_UPLOADING_KEY')
+SECRETS_FILE_ENV_VARIABLE_NAME = 'YOUTUBE_UPLOADING_KEY'
 
 
-def get_youtube_api(client_secrets_file=SECRETS_FILE):
+def get_youtube_api(client_secrets_file=None):
+    if client_secrets_file is None:
+        client_secrets_file = os.getenv(SECRETS_FILE_ENV_VARIABLE_NAME)
     # Authorization
     api_service_name = "youtube"
     api_version = "v3"

@@ -18,7 +18,7 @@ from srt_ops import write_srt_from_sentences_and_time_ranges
 from sentence_timings import get_sentence_timings_from_srt
 from sentence_timings import get_sentences_with_timings
 
-SERVICE_ACCOUNT_PATH = os.getenv('GOOGLE_TRANSLATION_SERVICE_ACCOUNT')
+SERVICE_ACCOUNT_ENV_VARIABLE_NAME = 'GOOGLE_TRANSLATION_SERVICE_ACCOUNT'
 TARGET_LANGUAGES = [
     "Spanish",
     "Hindi",
@@ -42,7 +42,9 @@ TARGET_LANGUAGES = [
 ]
 
 
-def get_google_translate_client(service_account_file=SERVICE_ACCOUNT_PATH):
+def get_google_translate_client(service_account_file=None):
+    if service_account_file is None:
+        service_account_file = os.getenv(SERVICE_ACCOUNT_ENV_VARIABLE_NAME)
     # Set up the translation client
     if not os.path.exists(service_account_file):
         raise Exception("No service account credentials for translating with the Google API")
