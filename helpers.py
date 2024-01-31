@@ -144,15 +144,11 @@ def url_to_directory(video_url, root=None):
 
 
 def get_web_id_to_caption_directory_map():
-    root = CAPTIONS_DIRECTORY
-    result = dict()
-    for year in os.listdir(root):
-        year_dir = os.path.join(root, year)
-        if not os.path.isdir(year_dir):
-            continue
-        for web_id in os.listdir(year_dir):
-            result[web_id] = os.path.join(year_dir, web_id)
-    return result
+    vid_to_dir = get_video_id_to_caption_directory_map()
+    return {
+        Path(directory).stem: directory
+        for directory in vid_to_dir.values()
+    }
 
 
 def get_video_id_to_web_id_map():
