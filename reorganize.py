@@ -18,7 +18,7 @@ from helpers import get_language_code
 from helpers import url_to_directory
 from helpers import get_all_files_with_ending
 from helpers import CAPTIONS_DIRECTORY
-from helpers import SENTENCE_ENDINGS
+from helpers import SENTENCE_ENDING_PATTERN
 
 from translate import get_sentence_timings_from_srt
 from translate import get_sentence_translation_file
@@ -40,8 +40,8 @@ def is_fully_populated_translation(translation_file):
     trans = json_load(translation_file)
     return not any(
         op.and_(
-            bool(re.sub(SENTENCE_ENDINGS, "", obj["input"])),
-            not bool(re.sub(SENTENCE_ENDINGS, "", obj["translatedText"]))
+            bool(re.sub(SENTENCE_ENDING_PATTERN, "", obj["input"])),
+            not bool(re.sub(SENTENCE_ENDING_PATTERN, "", obj["translatedText"]))
         )
         for obj in trans
     )
@@ -254,7 +254,7 @@ def reconstruct_sentence_translations_from_srt(english_srt, translation_srt):
             tr_sent
             for tr_sent, tr_range in zip(tr_sents, tr_time_ranges)
             if overlaps(tr_range, en_range)
-            if re.sub(SENTENCE_ENDINGS, '', tr_sent).strip()
+            if re.sub(SENTENCE_ENDING_PATTERN, '', tr_sent).strip()
         ))
         for en_range in en_time_ranges
     ]

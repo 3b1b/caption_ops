@@ -5,7 +5,7 @@ import Levenshtein
 
 from helpers import get_sentences
 from helpers import interpolate
-from helpers import SENTENCE_ENDINGS
+from helpers import SENTENCE_ENDING_PATTERN
 
 from srt_ops import sub_rip_time_to_seconds
 
@@ -70,7 +70,7 @@ def get_sentences_with_timings(words_with_timings):
 
 
 # Hopefully all functions below here are no longer needed
-def get_sentence_timings_from_srt(srt_file, end_marks=SENTENCE_ENDINGS):
+def get_sentence_timings_from_srt(srt_file, end_marks=SENTENCE_ENDING_PATTERN):
     subs = pysrt.open(srt_file)
     full_text = ""
     sent_delim_times = [sub_rip_time_to_seconds(subs[0].start)]

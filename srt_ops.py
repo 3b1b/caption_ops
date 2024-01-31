@@ -6,7 +6,7 @@ import pysrt
 import datetime
 
 from helpers import interpolate
-from helpers import SENTENCE_ENDINGS
+from helpers import SENTENCE_ENDING_PATTERN
 from helpers import PUNCTUATION_PATTERN
 
 
@@ -63,7 +63,7 @@ def srt_to_txt(srt_file, txt_file_name="transcript"):
         text += "."
 
     txt_path = Path(Path(srt_file).parent, txt_file_name).with_suffix(".txt")
-    punc = SENTENCE_ENDINGS
+    punc = SENTENCE_ENDING_PATTERN
     sentences = [
         sentence.strip() + mark
         for sentence, mark in zip(

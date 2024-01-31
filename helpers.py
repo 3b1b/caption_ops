@@ -15,7 +15,7 @@ from pytube.extract import video_id as extract_video_id
 
 CAPTIONS_DIRECTORY = "/Users/grant/cs/captions"
 AUDIO_DIRECTORY = "/Users/grant/3Blue1Brown Dropbox/3Blue1Brown/audio_tracks"
-SENTENCE_ENDINGS = r'(?<=[.!?])\s+|\.$|(?<=[।۔՝։።။។፡。！？])'
+SENTENCE_ENDING_PATTERN = r'(?<=[.!?])\s+|\.$|(?<=[।۔՝։።။។፡。！？])'
 PUNCTUATION_PATTERN = r'(?<=[.!?,:;])\s+|\.$|(?<=[，।۔՝։።။។፡。！？])'
 
 @contextmanager
@@ -56,7 +56,7 @@ def nearest_string(src, trg_list):
     return trg_list[index], distances[index]
 
 
-def get_sentences(full_text, end_marks=SENTENCE_ENDINGS):
+def get_sentences(full_text, end_marks=SENTENCE_ENDING_PATTERN):
     return [
         (sentence + mark).strip()
         for sentence, mark in zip(
