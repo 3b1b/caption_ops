@@ -10,7 +10,6 @@ from helpers import extract_video_id
 from helpers import get_video_id_to_caption_directory_map
 from helpers import temporary_message
 from helpers import to_snake_case
-from helpers import urls_to_directories
 from helpers import get_web_id_to_video_id_map
 from helpers import get_language_code
 from helpers import url_to_directory
