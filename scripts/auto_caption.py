@@ -5,8 +5,6 @@ from pathlib import Path
 
 from helpers import url_to_directory
 from helpers import ensure_exists
-from helpers import json_load
-from helpers import json_dump
 from helpers import get_videos_information
 from helpers import AUDIO_DIRECTORY
 
@@ -57,7 +55,7 @@ def recaption_everything():
         audio_dir = url_to_directory(url, root=AUDIO_DIRECTORY)
         audio_file = Path(audio_dir, "original_audio.mp4")
         if not os.path.exists(audio_file):
-            audio_file = download_youtube_audio(url, audio_dir)
+            download_youtube_audio(url, audio_file)
         # Transcribe
         try:
             en_dir = ensure_exists(Path(caption_dir, "english"))
@@ -74,7 +72,9 @@ def auto_caption(video_url, upload=True):
     audio_dir = url_to_directory(video_url, root=AUDIO_DIRECTORY)
 
     # Download
-    audio_file = download_youtube_audio(video_url, audio_dir)
+    audio_file = Path(audio_dir, "original_audio.mp4")
+    if True or not os.path.exists(audio_file):
+        download_youtube_audio(video_url, audio_file)
 
     # Transcribe
     en_dir = ensure_exists(Path(caption_dir, "english"))
@@ -91,7 +91,7 @@ def auto_caption(video_url, upload=True):
         video_id = YouTube(video_url).video_id
         # Upload english
         try:
-            upload_caption(youtube_api, video_id, language_code="en", name="", caption_file=caption_path)
+            upload_caption(youtube_api, video_id, caption_path, replace=True)
         except Exception as e:
             print(f"Failed to upload {caption_path}\n\n{e}\n\n")
         # Upload all other languages
