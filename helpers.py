@@ -154,28 +154,27 @@ def get_all_video_urls():
 
 
 def url_to_directory(video_url, root=None):
-    vid_to_dir = get_video_id_to_caption_directory_map()
     vid = extract_video_id(video_url)
 
+    vid_to_dir = get_video_id_to_caption_directory_map()
     if vid in vid_to_dir:
         directory = vid_to_dir[vid]
     else:
+        # Construct a path to associate with this video,
+        # and save to it a file with the url
         yt = YouTube(video_url)
         year = yt.publish_date.year
         title_words = [w.lower() for w in yt.title.split("|")[0].split(" ")]
         title_words = list(filter(lambda w: w not in {"a", "the"}, title_words))
         web_id = "_".join(title_words[:3])
-        directory = ensure_exists(os.path.join(CAPTIONS_DIRECTORY, str(year), web_id))
-        with open(os.path.join(directory, "video_url.txt"), 'w') as fp:
+        directory = Path(CAPTIONS_DIRECTORY, str(year), web_id)
+        ensure_exists(directory.parent)
+        with open(Path(directory, "video_url.txt"), 'w') as fp:
             fp.write(f"https://youtu.be/{vid}")
-        vid_to_dir[vid] = directory
+        get_video_id_to_caption_directory_map.cache_clear()
     if root is not None:
         directory = directory.replace(CAPTIONS_DIRECTORY, root)
     return directory
-
-
-def urls_to_directories(video_urls):
-    return [url_to_directory(url) for url in video_urls]
 
 
 def webids_to_directories(web_ids):
