@@ -8,6 +8,7 @@ from youtube_transcript_api import YouTubeTranscriptApi
 
 from helpers import extract_video_id
 from helpers import get_video_id_to_caption_directory_map
+from helpers import ensure_exists
 from helpers import temporary_message
 from helpers import to_snake_case
 from helpers import get_web_id_to_video_id_map
@@ -21,6 +22,7 @@ from srt_ops import sub_rip_time_to_seconds
 def download_youtube_audio(url, file_path):
     yt = YouTube(url)
     with temporary_message(f"Downloading to {file_path}"):
+        ensure_exists(Path(file_path).parent)
         yt = yt.streams.filter(only_audio=True, file_extension="mp4").order_by("abr").desc()
         result = yt.first().download(filename=str(file_path))
     return result
