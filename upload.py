@@ -2,10 +2,13 @@ import os
 import google_auth_oauthlib.flow
 import googleapiclient.discovery
 import googleapiclient.errors
+import html
+
 from pytube import YouTube
-import pycountry
+from pathlib import Path
 
 from googleapiclient.http import MediaFileUpload
+from googleapiclient.errors import HttpError
 
 from helpers import urls_to_directories
 from helpers import temporary_message
@@ -28,7 +31,10 @@ def get_youtube_api(client_secrets_file=SECRETS_FILE):
         client_secrets_file=client_secrets_file,
         scopes=["https://www.googleapis.com/auth/youtube.force-ssl"]
     )
-    credentials = flow.run_local_server(port=0)
+    credentials = flow.run_local_server(
+        port=0,
+        authorization_prompt_message=""
+    )
     return googleapiclient.discovery.build(
         api_service_name, api_version,
         credentials=credentials
@@ -58,7 +64,8 @@ def delete_captions(youtube_api, video_id, language_code):
             print(f"Failed to delete {language_code} on {video_id}\n\n{e}\n\n")
 
 
-def upload_caption(youtube_api, video_id, language_code, name, caption_file, replace=False):
+def upload_caption(youtube_api, video_id, caption_file, name="", replace=False):
+    language_code = get_language_code(Path(caption_file).parent.stem)
     if replace:
         delete_captions(youtube_api, video_id, language_code)
     # Insert new captions
@@ -86,11 +93,9 @@ def upload_caption(youtube_api, video_id, language_code, name, caption_file, rep
             print(f"Failed to upload {caption_file}\n\n{str(e)}\n")
 
 
-def upload_video_localizations(youtube_api, video_id, languages_to_details):
-    if len(languages_to_details) == 0:
-        pass
-
-    # Get the current localizations
+def upload_video_localizations(youtube_api, video_id, caption_directory):
+    # Get the current video information, including localizations
+    web_id = os.path.split(caption_directory)[-1]
     try:
         videos_list_response = youtube_api.videos().list(
             part="snippet,localizations",
@@ -98,53 +103,50 @@ def upload_video_localizations(youtube_api, video_id, languages_to_details):
         ).execute()
         
         curr_data = videos_list_response['items'][0]
-        localizations = curr_data.get('localizations', {})
+        snippet = curr_data['snippet']
+        snippet['defaultLanguage'] = "en"
+        localizations = curr_data.get('localizations', dict())
     except Exception as e:
-        print(f"Failed to retrieve existing video snippet\n\n{e}\n\n")
+        print(f"Failed to retrieve existing video snippet for {video_id}\n\n{e}\n\n")
         return
 
-    if "he" in languages_to_details:
-        languages_to_details["iw"] = languages_to_details.pop('he')
-
-    for lang_code, details in languages_to_details.items():
-        if details["description"] is None:
-            # Just use the same description, because why not?
-            details["description"] = curr_data['snippet']['description']
-        if len(details["title"]) == 0:
-            # Don't update for blank titles
+    # Update the localization based on title translates (descriptions tbd)
+    for language in os.listdir(caption_directory):
+        title_file = os.path.join(caption_directory, language, "title.json")
+        if not os.path.exists(title_file):
             continue
-        # Update the specific localization
-        localizations[lang_code] = details
 
-    snippet = curr_data['snippet']
-    body_data = {
-        "id": video_id,
-        "snippet": {
-            "title": snippet['title'],  # include only if you need to update the default language title
-            "description": snippet['description'],  # include only if you need to update the default language description
-            "categoryId": snippet['categoryId'],
-            # ... include other fields you need to update
-        },
-        "localizations": localizations
-    }
+        lang_code = get_language_code(language)
+        loc = localizations.get(lang_code, dict())
+        old_loc = dict(loc)
+        loc["title"] = html.unescape(json_load(title_file)['translatedText'])
+        if "description" not in loc:
+            # TODO, should read in some translated description instead
+            loc["description"] = snippet["description"]
 
-    videos_update_request = youtube_api.videos().update(
-        part="snippet,localizations",
-        body=body_data
-    )
-
-    try:
-        videos_update_request.execute()
-        print(f"Details for video ID {curr_data['snippet']['title']} updated.")
-    except Exception as e:
-        print(f"Failed to update details for video {video_id}\n\n{str(e)}\n")
+        # Try uploading
+        try:
+            localizations[lang_code] = loc
+            youtube_api.videos().update(
+                part="snippet,localizations",
+                body=dict(
+                    id=video_id,
+                    snippet=snippet,
+                    localizations=localizations,
+                )
+            ).execute()
+            print(f"{language} localization added to {web_id}")
+        except HttpError as e:
+            print(f"\nFailed to add {language} localization for {web_id}")
+            localizations.pop(lang_code)
+            if old_loc:
+                localizations[lang_code] = old_loc
 
 
 def upload_all_new_captions(youtube_api, directory, video_id):
     with temporary_message(f"Searching {directory}"):
         existing_language_codes = get_caption_languages(video_id)
 
-    lang_to_details = dict()
     for language in os.listdir(directory):
         language_dir = os.path.join(directory, language)
         if not os.path.isdir(language_dir):
@@ -155,21 +157,12 @@ def upload_all_new_captions(youtube_api, directory, video_id):
             upload_caption(
                 youtube_api,
                 video_id=video_id,
-                language_code=lang_code,
-                name="",
-                caption_file=caption_file
-            )
-
-        title_file = os.path.join(language_dir, "title.json")
-        if os.path.exists(title_file):
-            lang_to_details[lang_code] = dict(
-                title=json_load(title_file)['translatedText'],
-                description=None,  # TODO
+                caption_file=caption_file,
             )
 
     # Todo, update the localizations. The function above currently does
     # not work.
-    # upload_video_localizations(youtube_api, video_id, lang_to_details)
+    upload_video_localizations(youtube_api, video_id, directory)
 
 
 def upload_new_captions_multiple_videos(video_urls):
