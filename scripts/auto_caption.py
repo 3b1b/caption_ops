@@ -73,7 +73,7 @@ def recaption_everything():
             print(f"\n\n{e}\n\n")
 
 
-def auto_caption(video_url, upload=True, translate=True):
+def auto_caption(video_url, upload=True, translate=True, languages=None):
     youtube_api = get_youtube_api() if upload else None
 
     # Get output directories
@@ -92,8 +92,9 @@ def auto_caption(video_url, upload=True, translate=True):
 
     # Translate
     if translate:
-        translate_to_multiple_languages(captions_path, languages=TARGET_LANGUAGES)
-        translate_title_to_multiple_languages(video_url, languages=TARGET_LANGUAGES)
+        languages = TARGET_LANGUAGES if languages is None else languages
+        translate_to_multiple_languages(captions_path, languages)
+        translate_title_to_multiple_languages(video_url, languages)
 
     # Upload the results
     if upload:
@@ -110,8 +111,14 @@ def auto_caption(video_url, upload=True, translate=True):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Video url')
     parser.add_argument('video_url', type=str, help='YouTube url')
+    parser.add_argument('--languages', nargs='+', type=str, help='languages')
     parser.add_argument('--no-upload', action='store_false', dest='upload', help='If set, upload will be disabled.')
     parser.add_argument('--no-translate', action='store_false', dest='translate', help='If set, translations will be disabled.')
     args = parser.parse_args()
 
-    auto_caption(args.video_url, upload=args.upload, translate=args.translate)
+    auto_caption(
+        args.video_url,
+        upload=args.upload,
+        translate=args.translate,
+        languages=args.languages,
+    )
