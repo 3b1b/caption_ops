@@ -8,10 +8,13 @@ from google.oauth2 import service_account
 from helpers import temporary_message
 from helpers import webids_to_directories
 from helpers import ensure_exists
+from helpers import extract_video_id
 from helpers import get_language_code
 from helpers import json_load
 from helpers import json_dump
 from helpers import url_to_directory
+
+from download import download_video_title_and_description
 
 from srt_ops import write_srt_from_sentences_and_time_ranges
 
@@ -150,17 +153,32 @@ def translate_multiple_videos(web_ids, languages):
         translate_to_multiple_languages(english_srt, languages)
 
 
-def translate_video_title(video_url, language, overwrite=False):
-    file = Path(url_to_directory(video_url), language.lower(), "title.json")
-    if os.path.exists(file) and not overwrite:
-        return
-    title = YouTube(video_url).title
-    with temporary_message(f"Translating to {language}"):
-        trans = translate_sentences([title], language)[0]
-    ensure_exists(file.parent)
-    json_dump(trans, file)
+def translate_video_details(youtube_api, video_url, language, overwrite=False):
+    vid = extract_video_id(video_url)
+    title, desc = download_video_title_and_description(youtube_api, vid)
+    # Remove footer
+    if "---" in desc:
+        desc = desc[:desc.index("---")]
+
+    # Where to write them
+    cap_dir = url_to_directory(video_url)
+    lag_dir = ensure_exists(Path(cap_dir, language.lower()))
+    title_file = Path(lag_dir, "title.json")
+    desc_file = Path(lag_dir, "description.json")
+
+    # Translate title
+    if not os.path.exists(title_file) or overwrite:
+        with temporary_message(f"Translating title to {language}"):
+            trans = translate_sentences([title], language)[0]
+        json_dump(trans, title_file)
+
+    # Translate description
+    if not os.path.exists(desc_file) or overwrite:
+        with temporary_message(f"Translating description to {language}"):
+            trans = translate_sentences(desc.split("\n"), language)
+        json_dump(trans, desc_file)
 
 
-def translate_title_to_multiple_languages(video_url, languages):
+def translate_video_details_multiple_languages(youtube_api, video_url, languages):
     for language in languages:
-        translate_video_title(video_url, language)
+        translate_video_details(youtube_api, video_url, language)
