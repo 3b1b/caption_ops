@@ -95,7 +95,8 @@ def upload_caption(youtube_api, video_id, caption_file, name="", replace=False):
             print(f"Failed to upload {caption_file}\n\n{str(e)}\n")
 
 
-def upload_video_localizations(youtube_api, video_id, caption_directory):
+def upload_video_localizations(youtube_api, caption_directory, video_id):
+    # TODO, update this to also seek and upload descriptions
     # Get the current video information, including localizations
     web_id = os.path.split(caption_directory)[-1]
     try:
@@ -112,23 +113,37 @@ def upload_video_localizations(youtube_api, video_id, caption_directory):
         print(f"Failed to retrieve existing video snippet for {video_id}\n\n{e}\n\n")
         return
 
-    # Update the localization based on title translates (descriptions tbd)
+    # Update the localization based on title translations (descriptions tbd)
+    successes = []
+    failures = []
     for language in os.listdir(caption_directory):
-        title_file = os.path.join(caption_directory, language, "title.json")
-        if not os.path.exists(title_file):
-            continue
-
         lang_code = get_language_code(language)
+        title_file = os.path.join(caption_directory, language, "title.json")
+        desc_file = os.path.join(caption_directory, language, "description.json")
+
         loc = localizations.get(lang_code, dict())
         old_loc = dict(loc)
-        loc["title"] = html.unescape(json_load(title_file)['translatedText'])
-        if "description" not in loc:
-            # TODO, should read in some translated description instead
-            loc["description"] = snippet["description"]
+        needs_update = False
+
+        if os.path.exists(title_file):
+            title = html.unescape(json_load(title_file)['translatedText'])
+            if loc.get("title", "") != title:
+                needs_update = True
+                loc["title"] = title
+        if os.path.exists(desc_file):
+            desc = "\n".join([
+                html.unescape(obj['translatedText'])
+                for obj in json_load(desc_file)
+            ])
+            if loc.get("description", "") != desc:
+                needs_update = True
+                loc["description"] = desc
+        if not needs_update:
+            continue
 
         # Try uploading
+        localizations[lang_code] = loc
         try:
-            localizations[lang_code] = loc
             youtube_api.videos().update(
                 part="snippet,localizations",
                 body=dict(
@@ -137,12 +152,16 @@ def upload_video_localizations(youtube_api, video_id, caption_directory):
                     localizations=localizations,
                 )
             ).execute()
-            print(f"{language} localization added to {web_id}")
+            successes.append(language)
         except HttpError as e:
-            print(f"\nFailed to add {language} localization for {web_id}")
-            localizations.pop(lang_code)
-            if old_loc:
-                localizations[lang_code] = old_loc
+            failures.append(language)
+            localizations[lang_code] = old_loc
+
+    # Print out
+    if successes:
+        print(f"Localizations on {web_id} upldated for {successes}")
+    if failures:
+        print(f"Failed to update localization on {web_id} for for {failures}")
 
 
 def upload_all_new_captions(youtube_api, directory, video_id):
@@ -161,10 +180,6 @@ def upload_all_new_captions(youtube_api, directory, video_id):
                 video_id=video_id,
                 caption_file=caption_file,
             )
-
-    # Todo, update the localizations. The function above currently does
-    # not work.
-    upload_video_localizations(youtube_api, video_id, directory)
 
 
 def upload_new_captions_multiple_videos(video_urls):
