@@ -18,7 +18,7 @@ from transcribe_video import words_with_timings_to_srt
 from transcribe_video import save_word_timings
 
 from translate import translate_to_multiple_languages
-from translate import translate_title_to_multiple_languages
+from translate import translate_video_details_multiple_languages
 from translate import TARGET_LANGUAGES
 
 from srt_ops import srt_to_txt
@@ -95,7 +95,8 @@ def auto_caption(video_url, upload=True, translate=True, languages=None):
     if translate:
         languages = TARGET_LANGUAGES if languages is None else languages
         translate_to_multiple_languages(captions_path, languages)
-        translate_title_to_multiple_languages(video_url, languages)
+        if youtube_api:
+            translate_video_details_multiple_languages(youtube_api, video_url, languages)
 
     # Upload the results
     if upload:
