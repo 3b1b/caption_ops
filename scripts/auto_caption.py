@@ -26,6 +26,7 @@ from srt_ops import srt_to_txt
 from upload import get_youtube_api
 from upload import upload_caption
 from upload import upload_all_new_captions
+from upload import upload_video_localizations
 
 
 def write_all_transcription_files(
@@ -106,6 +107,7 @@ def auto_caption(video_url, upload=True, translate=True, languages=None):
             print(f"Failed to upload {captions_path}\n\n{e}\n\n")
         # Upload all other languages
         upload_all_new_captions(youtube_api, caption_dir, video_id)
+        upload_video_localizations(youtube_api, caption_dir, video_id)
 
 
 if __name__ == "__main__":
