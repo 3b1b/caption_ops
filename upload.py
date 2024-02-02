@@ -14,6 +14,8 @@ from helpers import url_to_directory
 from helpers import temporary_message
 from helpers import get_language_code
 from helpers import json_load
+from helpers import get_video_id_to_web_id_map
+from helpers import get_language_from_code
 
 from download import get_caption_languages
 
@@ -60,6 +62,8 @@ def get_youtube_api():
 
 
 def delete_captions(youtube_api, video_id, language_code):
+    web_id = get_video_id_to_web_id_map()[video_id]
+    language = get_language_from_code(language_code)
     # Check the current caption ids
     caption_id = None
     try:
@@ -70,16 +74,16 @@ def delete_captions(youtube_api, video_id, language_code):
                 caption_id = item["id"]
                 break
     except Exception as e:
-        print(f"Failed to retrieve captions on {video_id}\n\n{e}\n\n")
+        print(f"Failed to retrieve captions from {web_id}\n\n{e}\n\n")
 
     # Delete the captions
     if caption_id:
         try:
             delete_request = youtube_api.captions().delete(id=caption_id)
             delete_request.execute()
-            print(f"Deleted existing {language_code} on {video_id}")
+            print(f"Deleted existing {language} captions on {web_id}")
         except Exception as e:
-            print(f"Failed to delete {language_code} on {video_id}\n\n{e}\n\n")
+            print(f"Failed to delete {language} captions on {web_id}\n\n{e}\n\n")
 
 
 def upload_caption(youtube_api, video_id, caption_file, name="", replace=False):
