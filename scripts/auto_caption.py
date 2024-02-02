@@ -29,35 +29,30 @@ from upload import upload_all_new_captions
 from upload import upload_video_localizations
 
 
-def write_all_transcription_files(
+def write_whisper_transcription_files(
     audio_file,
-    captions_path,
-    whisper_captions_name="whisper_captions.srt",
+    directory,
     word_timings_file_name="word_timings.json",
-    model=None
+    captions_file_name="captions.srt",
 ):
-    parent = Path(captions_path).parent
-    whisper_srt_path = Path(parent, whisper_captions_name)
-    timing_file_path = Path(parent, word_timings_file_name)
+    word_timings_path = Path(directory, word_timings_file_name)
+    captions_path = Path(directory, captions_file_name)
 
-    if not os.path.exists(timing_file_path):
-        if model is None:
-            model = load_whisper_model()
+    if not os.path.exists(word_timings_path):
+        model = load_whisper_model()
         # Run whisper
         transcription = transcribe_file(model, str(audio_file))
-        # Save the srt that whisper generates
-        write_whisper_srt(transcription, whisper_srt_path)
         # Save the times for each individual word
-        save_word_timings(transcription, timing_file_path)
-    word_timings = json_load(timing_file_path)
-    # Write a better srt based on those word timeings
+        save_word_timings(transcription, word_timings_path)
+    word_timings = json_load(word_timings_path)
+    # Write an srt based on those word timeings
     words_with_timings_to_srt(word_timings, captions_path)
     # Write the transcription in plain text
     srt_to_txt(captions_path)
+    return word_timings_path, captions_path
 
 
 def recaption_everything():
-    model = load_whisper_model()
     urls = get_all_video_urls()
 
     for url in urls:
@@ -69,13 +64,13 @@ def recaption_everything():
         # Transcribe
         try:
             en_dir = ensure_exists(Path(caption_dir, "english"))
-            write_all_transcription_files(audio_file, Path(en_dir, "captions.srt"), model=model)
+            write_whisper_transcription_files(audio_file, en_dir)
         except Exception as e:
             print(f"\n\n{e}\n\n")
 
 
 def auto_caption(video_url, upload=True, translate=True, languages=None):
-    youtube_api = get_youtube_api() if upload else None
+    youtube_api = get_youtube_api()
 
     # Get output directories
     caption_dir = url_to_directory(video_url)
@@ -87,16 +82,16 @@ def auto_caption(video_url, upload=True, translate=True, languages=None):
         download_youtube_audio(video_url, audio_file)
 
     # Transcribe
-    en_dir = ensure_exists(Path(caption_dir, "english"))
-    captions_path = Path(en_dir, "captions.srt")
-    write_all_transcription_files(audio_file, captions_path)
+    word_timings_path, captions_path = write_whisper_transcription_files(
+        audio_file,
+        directory=ensure_exists(Path(caption_dir, "english"))
+    )
 
     # Translate
     if translate:
         languages = TARGET_LANGUAGES if languages is None else languages
-        translate_to_multiple_languages(captions_path, languages)
-        if youtube_api:
-            translate_video_details_multiple_languages(youtube_api, video_url, languages)
+        translate_to_multiple_languages(word_timings_path, languages)
+        translate_video_details_multiple_languages(youtube_api, video_url, languages)
 
     # Upload the results
     if upload:
