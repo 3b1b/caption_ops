@@ -75,6 +75,13 @@ def get_language_code(language):
     return lang_obj.alpha_2
 
 
+def get_language_from_code(language_code):
+    lang_obj = pycountry.languages.get(alpha_2=language_code)
+    if lang_obj is None:
+        return None
+    return lang_obj.name
+
+
 # Simple json wrappers
 
 
