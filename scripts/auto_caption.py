@@ -23,6 +23,8 @@ from translate import TARGET_LANGUAGES
 
 from srt_ops import srt_to_txt
 
+from download import find_mismatched_captions
+
 from upload import get_youtube_api
 from upload import upload_caption
 from upload import upload_all_new_captions
@@ -96,13 +98,11 @@ def auto_caption(video_url, upload=True, translate=True, languages=None):
     # Upload the results
     if upload:
         video_id = YouTube(video_url).video_id
-        # Upload english
-        try:
-            upload_caption(youtube_api, video_id, captions_path, replace=True)
-        except Exception as e:
-            print(f"Failed to upload {captions_path}\n\n{e}\n\n")
-        # Upload all other languages
-        upload_all_new_captions(youtube_api, caption_dir, video_id)
+        for path in find_mismatched_captions(video_url):
+            try:
+                upload_caption(youtube_api, video_id, path, replace=True)
+            except Exception as e:
+                print(f"Failed to upload {path}\n\n{e}\n\n")
         upload_video_localizations(youtube_api, caption_dir, video_id)
 
 
