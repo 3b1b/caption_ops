@@ -75,9 +75,9 @@ def translate_sentences(
     return translations
 
 
-def get_sentence_translation_file(english_srt, target_language):
+def get_sentence_translation_file(word_timing_file, target_language):
     result = Path(
-        Path(english_srt).parent.parent,
+        Path(word_timing_file).parent.parent,
         target_language.lower(),
         "sentence_translations.json"
     )
@@ -85,16 +85,14 @@ def get_sentence_translation_file(english_srt, target_language):
     return result
 
 
-def generate_sentence_translations_with_timings(english_srt, target_language):
+def generate_sentence_translations_with_timings(word_timing_file, target_language):
     # Get sentences and timings
-    word_timing_file = Path(Path(english_srt).parent, "word_timings.json")
-    if os.path.exists(word_timing_file):
-        en_sentences, time_ranges = get_sentences_with_timings(json_load(word_timing_file))
-    else:
-        en_sentences, time_ranges = get_sentence_timings_from_srt(english_srt)
+    if not os.path.exists(word_timing_file):
+        raise Exception(f"No file {word_timing_file}")
+    en_sentences, time_ranges = get_sentences_with_timings(json_load(word_timing_file))
 
     # Call the Google api to translate, and save to file
-    sentence_translation_file = get_sentence_translation_file(english_srt, target_language)
+    sentence_translation_file = get_sentence_translation_file(word_timing_file, target_language)
     with temporary_message(f"Translating to {sentence_translation_file}"):
         translations = translate_sentences(en_sentences, target_language)
     for obj, time_range in zip(translations, time_ranges):
@@ -126,25 +124,25 @@ def sentence_translations_to_srt(sentence_translation_file):
     return trans_srt
 
 
-def write_translated_srt(english_srt, target_language):
+def write_translated_srt(word_timing_file, target_language):
     # If it hasn't been translated before, generated the translation
-    trans_file = get_sentence_translation_file(english_srt, target_language)
+    trans_file = get_sentence_translation_file(word_timing_file, target_language)
     if not os.path.exists(trans_file):
-        generate_sentence_translations_with_timings(english_srt, target_language)
+        generate_sentence_translations_with_timings(word_timing_file, target_language)
     # Use the translation to wrie the new srt
     return sentence_translations_to_srt(trans_file)
 
 
-def translate_to_multiple_languages(english_srt, languages, skip_community_generated=True):
-    cap_dir = Path(english_srt).parent.parent
+def translate_to_multiple_languages(word_timing_file, languages, skip_community_generated=True):
+    cap_dir = Path(word_timing_file).parent.parent
     for language in languages:
         lang_dir = ensure_exists(Path(cap_dir, language.lower()))
         if skip_community_generated and any(f.endswith("community.srt") for f in os.listdir(lang_dir)):
             continue
         try:
-            write_translated_srt(english_srt, language)
+            write_translated_srt(word_timing_file, language)
         except Exception as e:
-            print(f"Failed to translate {english_srt} to {language}\n{e}\n\n")
+            print(f"Failed to translate {cap_dir.stem} to {language}\n{e}\n\n")
 
 
 def translate_multiple_videos(web_ids, languages):
