@@ -1,13 +1,13 @@
 import os
 import google_auth_oauthlib.flow
 import googleapiclient.discovery
-import googleapiclient.errors
+import google.auth.transport.requests
+from google.oauth2.credentials import Credentials
+from googleapiclient.http import MediaFileUpload
+from googleapiclient.errors import HttpError
 import html
 
 from pathlib import Path
-
-from googleapiclient.http import MediaFileUpload
-from googleapiclient.errors import HttpError
 
 from helpers import extract_video_id
 from helpers import url_to_directory
@@ -19,24 +19,40 @@ from download import get_caption_languages
 
 
 SECRETS_FILE_ENV_VARIABLE_NAME = 'YOUTUBE_UPLOADING_KEY'
+CRENTIALS_FILE_ENV_VARIABLE_NAME = 'YOUTUBE_CREDENTIALS_FILE'
 
 
-def get_youtube_api(client_secrets_file=None):
+def get_youtube_api():
+    client_secrets_file = os.getenv(SECRETS_FILE_ENV_VARIABLE_NAME)
+    credentials_file = os.getenv(CRENTIALS_FILE_ENV_VARIABLE_NAME)
     if client_secrets_file is None:
-        client_secrets_file = os.getenv(SECRETS_FILE_ENV_VARIABLE_NAME)
-    # Authorization
+        raise Exception(f"Environment variable {SECRETS_FILE_ENV_VARIABLE_NAME} not set")
+    if credentials_file is None:
+        raise Exception(f"Environment variable {CRENTIALS_FILE_ENV_VARIABLE_NAME} not set")
+
     api_service_name = "youtube"
     api_version = "v3"
+    scopes = ["https://www.googleapis.com/auth/youtube.force-ssl"]
 
-    # Get credentials and create an API client
-    flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(
-        client_secrets_file=client_secrets_file,
-        scopes=["https://www.googleapis.com/auth/youtube.force-ssl"]
-    )
-    credentials = flow.run_local_server(
-        port=0,
-        authorization_prompt_message=""
-    )
+    credentials = None
+
+    # Load credentials from the file if they exist
+    if os.path.exists(credentials_file):
+        credentials = Credentials.from_authorized_user_file(credentials_file, scopes)
+
+    # If there are no valid credentials available, request the user to log in.
+    if not credentials or not credentials.valid:
+        if credentials and credentials.expired and credentials.refresh_token:
+            credentials.refresh(google.auth.transport.requests.Request())
+        else:
+            flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(
+                client_secrets_file, scopes
+            )
+            credentials = flow.run_local_server(port=0)
+            # Save the credentials for the next run
+            with open(credentials_file, 'w') as f:
+                f.write(credentials.to_json())
+
     return googleapiclient.discovery.build(
         api_service_name, api_version,
         credentials=credentials
@@ -96,7 +112,6 @@ def upload_caption(youtube_api, video_id, caption_file, name="", replace=False):
 
 
 def upload_video_localizations(youtube_api, caption_directory, video_id):
-    # TODO, update this to also seek and upload descriptions
     # Get the current video information, including localizations
     web_id = os.path.split(caption_directory)[-1]
     try:
@@ -118,6 +133,8 @@ def upload_video_localizations(youtube_api, caption_directory, video_id):
     failures = []
     for language in os.listdir(caption_directory):
         lang_code = get_language_code(language)
+        if lang_code is None:
+            continue
         title_file = os.path.join(caption_directory, language, "title.json")
         desc_file = os.path.join(caption_directory, language, "description.json")
 
@@ -159,9 +176,11 @@ def upload_video_localizations(youtube_api, caption_directory, video_id):
 
     # Print out
     if successes:
-        print(f"Localizations on {web_id} upldated for {successes}")
+        lang_str = ", ".join(successes)
+        print(f"Localizations on {web_id} updated for {lang_str}\n")
     if failures:
-        print(f"Failed to update localization on {web_id} for for {failures}")
+        lang_str = ", ".join(failures)
+        print(f"Failed to update localization on {web_id} for for {lang_str}\n")
 
 
 def upload_all_new_captions(youtube_api, directory, video_id):
