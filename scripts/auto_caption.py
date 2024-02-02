@@ -27,7 +27,6 @@ from download import find_mismatched_captions
 
 from upload import get_youtube_api
 from upload import upload_caption
-from upload import upload_all_new_captions
 from upload import upload_video_localizations
 
 
