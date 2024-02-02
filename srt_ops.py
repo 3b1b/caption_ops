@@ -73,7 +73,6 @@ def srt_to_txt(srt_file, txt_file_name="transcript"):
     ]
     with open(txt_path, "w", encoding='utf-8') as fp:
         fp.write("\n".join(sentences))
-    print(f"Wrote {txt_path}")
 
 
 def write_srt_from_sentences_and_time_ranges(
