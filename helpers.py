@@ -119,10 +119,15 @@ def get_all_files_with_ending(ending, root=CAPTIONS_DIRECTORY):
 def get_video_id_to_caption_directory_map():
     result = dict()
     for file in get_all_files_with_ending("video_url.txt"):
-        with open(file, 'r') as fp:
-            url = fp.read()
+        url = Path(file).read_text()
         result[extract_video_id(url)] = os.path.split(file)[0]
     return result
+
+
+def default_title_to_web_id(title):
+    title_words = title.lower().split(" ")
+    large_title_words = list(filter(lambda w: len(w) > 3, title_words))
+    return "-".join(large_title_words[:3])
 
 
 def url_to_directory(video_url, root=None):
@@ -136,17 +141,14 @@ def url_to_directory(video_url, root=None):
         # and save to it a file with the url
         yt = YouTube(video_url)
         year = yt.publish_date.year
-        title_words = [w.lower() for w in yt.title.split("|")[0].split(" ")]
-        title_words = list(filter(lambda w: w not in {"a", "the"}, title_words))
-        web_id = "_".join(title_words[:3])
+        web_id = default_title_to_web_id(yt.title)
         directory = Path(CAPTIONS_DIRECTORY, str(year), web_id)
         if "shorts" in video_url:
             directory = Path(directory, "shorts")
         ensure_exists(directory)
         # Save file containing the video url here so the
         # association can be found later.
-        with open(Path(directory, "video_url.txt"), 'w') as fp:
-            fp.write(video_url)
+        Path(directory, "video_url.txt").write_text(video_url)
         get_video_id_to_caption_directory_map.cache_clear()
     if root is not None:
         directory = str(directory).replace(CAPTIONS_DIRECTORY, root)
