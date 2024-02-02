@@ -124,34 +124,39 @@ def get_video_id_to_caption_directory_map():
     return result
 
 
-def default_title_to_web_id(title):
-    title_words = title.lower().split(" ")
+def create_default_directory(video_url):
+    yt = YouTube(video_url)
+    year_str = str(yt.publish_date.year)
+
+    # Create default web_id
+    title_words = yt.title.lower().split(" ")
     large_title_words = list(filter(lambda w: len(w) > 3, title_words))
-    return "-".join(large_title_words[:3])
+    web_id = "-".join(large_title_words[:3])
+
+    # Create the directory
+    directory = Path(CAPTIONS_DIRECTORY, year_str, web_id)
+    if "shorts" in video_url:
+        directory = Path(directory, "shorts")
+    ensure_exists(directory)
+
+    # Save the url in this directory so the association can be found later
+    Path(directory, "video_url.txt").write_text(video_url)
+
+    # Clear this cache now that a new video_url.txt has been added
+    get_video_id_to_caption_directory_map.cache_clear()
+
+    return directory
 
 
 def url_to_directory(video_url, root=None):
     vid = extract_video_id(video_url)
+    directory = get_video_id_to_caption_directory_map().get(vid, None)
+    if directory is None:
+        directory = create_default_directory(video_url)
 
-    vid_to_dir = get_video_id_to_caption_directory_map()
-    if vid in vid_to_dir:
-        directory = vid_to_dir[vid]
-    else:
-        # Construct a path to associate with this video,
-        # and save to it a file with the url
-        yt = YouTube(video_url)
-        year = yt.publish_date.year
-        web_id = default_title_to_web_id(yt.title)
-        directory = Path(CAPTIONS_DIRECTORY, str(year), web_id)
-        if "shorts" in video_url:
-            directory = Path(directory, "shorts")
-        ensure_exists(directory)
-        # Save file containing the video url here so the
-        # association can be found later.
-        Path(directory, "video_url.txt").write_text(video_url)
-        get_video_id_to_caption_directory_map.cache_clear()
     if root is not None:
         directory = str(directory).replace(CAPTIONS_DIRECTORY, root)
+
     return directory
 
 
