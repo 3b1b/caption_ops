@@ -69,7 +69,10 @@ def get_sentences(full_text, end_marks=SENTENCE_ENDING_PATTERN):
 def get_language_code(language):
     if language.lower() == "hebrew":
         return 'iw'
-    return pycountry.languages.get(name=language).alpha_2
+    lang_obj = pycountry.languages.get(name=language)
+    if lang_obj is None:
+        return None
+    return lang_obj.alpha_2
 
 
 # Simple json wrappers
