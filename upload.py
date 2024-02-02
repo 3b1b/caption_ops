@@ -1,4 +1,6 @@
 import os
+from functools import lru_cache
+
 import google_auth_oauthlib.flow
 import googleapiclient.discovery
 import google.auth.transport.requests
@@ -23,7 +25,7 @@ from download import get_caption_languages
 SECRETS_FILE_ENV_VARIABLE_NAME = 'YOUTUBE_UPLOADING_KEY'
 CRENTIALS_FILE_ENV_VARIABLE_NAME = 'YOUTUBE_CREDENTIALS_FILE'
 
-
+@lru_cache()
 def get_youtube_api():
     client_secrets_file = os.getenv(SECRETS_FILE_ENV_VARIABLE_NAME)
     credentials_file = os.getenv(CRENTIALS_FILE_ENV_VARIABLE_NAME)
@@ -34,7 +36,7 @@ def get_youtube_api():
 
     api_service_name = "youtube"
     api_version = "v3"
-    scopes = ["https://www.googleapis.com/auth/youtube.force-ssl"]
+    scopes = ["https://www.googleapis.com/auth/youtubepartner"]
 
     credentials = None
 
