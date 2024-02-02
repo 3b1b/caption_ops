@@ -1,3 +1,4 @@
+from functools import lru_cache
 import torch
 from pathlib import Path
 
@@ -14,7 +15,7 @@ from srt_ops import write_srt_from_sentences_and_time_ranges
 
 ### Transcribing with whisper
 
-
+@lru_cache
 def load_whisper_model(model_name="medium.en"):
     with temporary_message("Loading Whisper model"):
         model = whisper.load_model(model_name)
