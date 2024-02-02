@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-from pytube import YouTube
 
 from google.cloud import translate_v2 as translate
 from google.oauth2 import service_account
@@ -18,7 +17,6 @@ from download import download_video_title_and_description
 
 from srt_ops import write_srt_from_sentences_and_time_ranges
 
-from sentence_timings import get_sentence_timings_from_srt
 from sentence_timings import get_sentences_with_timings
 
 SERVICE_ACCOUNT_ENV_VARIABLE_NAME = 'GOOGLE_TRANSLATION_SERVICE_ACCOUNT'
