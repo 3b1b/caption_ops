@@ -17,12 +17,12 @@ from helpers import get_all_files_with_ending
 from helpers import CAPTIONS_DIRECTORY
 from helpers import SENTENCE_ENDING_PATTERN
 
-from translate import get_sentence_timings_from_srt
 from translate import get_sentence_translation_file
 from translate import sentence_translations_to_srt
 from translate import translate_sentences
 from srt_ops import write_srt_from_sentences_and_time_ranges
 
+from sentence_timings import get_sentence_timings_from_srt
 from sentence_timings import get_sentences_with_timings
 from sentence_timings import get_sentence_timings
 
