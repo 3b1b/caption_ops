@@ -13,7 +13,6 @@ from download import download_youtube_audio
 
 from transcribe_video import load_whisper_model
 from transcribe_video import transcribe_file
-from transcribe_video import write_whisper_srt
 from transcribe_video import words_with_timings_to_srt
 from transcribe_video import save_word_timings
 
