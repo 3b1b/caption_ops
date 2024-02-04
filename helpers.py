@@ -18,6 +18,7 @@ AUDIO_DIRECTORY = "/Users/grant/3Blue1Brown Dropbox/3Blue1Brown/audio_tracks"
 SENTENCE_ENDING_PATTERN = r'(?<=[.!?])\s+|\.$|(?<=[।۔՝։።။។፡。！？])'
 PUNCTUATION_PATTERN = r'(?<=[.!?,:;])\s+|\.$|(?<=[，।۔՝։።။។፡。！？])'
 
+
 @contextmanager
 def temporary_message(message):
     try:
@@ -99,7 +100,6 @@ def json_dump(obj, filename, indent=1, ensure_ascii=False):
             ensure_ascii=ensure_ascii,
         )
     return result
-
 
 
 # Related to video file organization
