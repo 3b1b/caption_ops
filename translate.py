@@ -1,8 +1,14 @@
 import os
+from functools import lru_cache
+from concurrent.futures import Executor
 from pathlib import Path
 
 from google.cloud import translate_v2 as translate
 from google.oauth2 import service_account
+
+import deepl
+from google_auth_oauthlib.flow import google
+from torch import expand_copy
 
 from helpers import temporary_message
 from helpers import webids_to_directories
@@ -20,6 +26,7 @@ from srt_ops import write_srt_from_sentences_and_time_ranges
 from sentence_timings import get_sentences_with_timings
 
 SERVICE_ACCOUNT_ENV_VARIABLE_NAME = 'GOOGLE_TRANSLATION_SERVICE_ACCOUNT'
+DEEPL_KEY_FILE_ENV_VARIABLE_NAME = 'DEEPL_KEY_FILE'
 TARGET_LANGUAGES = [
     "Spanish",
     "Hindi",
@@ -43,26 +50,61 @@ TARGET_LANGUAGES = [
 ]
 
 
+@lru_cache()
+def get_deepl_translator():
+    # Get key
+    deepl_key_file = os.getenv(DEEPL_KEY_FILE_ENV_VARIABLE_NAME)
+    if deepl_key_file is None:
+        raise Exception(f"Environment variable {DEEPL_KEY_FILE_ENV_VARIABLE_NAME} not set")
+    if not os.path.exists(deepl_key_file):
+        raise Exception(f"No API key file {deepl_key_file} not available")
+    key = Path(deepl_key_file).read_text()
+    return deepl.Translator(key)
+
+
+@lru_cache()
 def get_google_translate_client(service_account_file=None):
     if service_account_file is None:
         service_account_file = os.getenv(SERVICE_ACCOUNT_ENV_VARIABLE_NAME)
-    # Set up the translation client
-    if not os.path.exists(service_account_file):
+    if service_account_file is None:
+        raise Exception(f"Environment variable {SERVICE_ACCOUNT_ENV_VARIABLE_NAME} not set")
+    if service_account_file is None or not os.path.exists(service_account_file):
         raise Exception("No service account credentials for translating with the Google API")
     credentials = credentials = service_account.Credentials.from_service_account_file(service_account_file)
     return translate.Client(credentials=credentials)
 
 
-def translate_sentences(
+def deepl_translate_sentences(
+    src_sentences: list,
+    target_language_code: str,
+    src_language_code="en",
+):
+    translator = get_deepl_translator()
+    ouputs = translator.translate_text(
+        src_sentences,
+        source_lang=src_language_code,
+        target_lang=target_language_code,
+        formality="prefer_less",
+    )
+    return [
+        dict(
+            input=in_sent,
+            translatedText=output.text,
+            model="DeepL"
+        )
+        for in_sent, output in zip(src_sentences, ouputs)
+    ]
+
+
+def google_translate_sentences(
     src_sentences,
-    target_language,
+    target_language_code,
     src_language_code="en",
     chunk_size=50,
     model=None,
 ):
     translate_client = get_google_translate_client()
     translations = []
-    target_language_code = get_language_code(target_language)
     for n in range(0, len(src_sentences), chunk_size):
         translations.extend(translate_client.translate(
             src_sentences[n:n + chunk_size],
@@ -70,7 +112,26 @@ def translate_sentences(
             source_language=src_language_code,
             model=model,
         ))
+    for obj in translations:
+        obj["model"] = "google_nmt"
     return translations
+
+
+def translate_sentences(en_sentences: list, target_language: str):
+    target_language_code = get_language_code(target_language)
+    if target_language_code is None:
+        raise Exception(f"Invalid language {target_language_code}")
+    deepl_translator = get_deepl_translator()
+    deepl_languages = set([
+        lang.code.lower()
+        for lang in deepl_translator.get_target_languages()
+    ])
+    if target_language_code in deepl_languages:
+        try:
+            return deepl_translate_sentences(en_sentences, target_language_code)
+        except deepl.DeepLException as e:
+            print("Failed on DeepL translation, trying Google")
+    return google_translate_sentences(en_sentences, target_language_code)
 
 
 def get_sentence_translation_file(word_timing_file, target_language):
