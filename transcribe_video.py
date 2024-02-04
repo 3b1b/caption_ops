@@ -13,7 +13,9 @@ from sentence_timings import get_sentence_timings
 
 from srt_ops import write_srt_from_sentences_and_time_ranges
 
-### Transcribing with whisper
+
+# Transcribing with whisper
+
 
 @lru_cache()
 def load_whisper_model(model_name="medium.en"):
@@ -25,7 +27,7 @@ def load_whisper_model(model_name="medium.en"):
 def transcribe_file(
     model,
     audio_file: str,
-    word_timestamps = True
+    word_timestamps=True
 ):
     """
     Runs Whisper on an audio file
@@ -38,8 +40,8 @@ def transcribe_file(
     with temporary_message(f"Transcribing file: {audio_file}\n"):
         transcription = model.transcribe(
             audio_file,
-            verbose = False,
-            language = "en",
+            verbose=False,
+            language="en",
             fp16=torch.cuda.is_available(),
             word_timestamps=word_timestamps,
         )
