@@ -117,15 +117,18 @@ def upload_caption(youtube_api, video_id, caption_file, name="", replace=False):
             print(f"Failed to upload {caption_file}\n\n{str(e)}\n")
 
 
-def upload_video_localizations(youtube_api, caption_directory, video_id):
+def upload_video_localizations(youtube_api, caption_directory, video_id, languages=None):
     # Get the current video information, including localizations
+    if languages is not None:
+        languages = [lang.lower() for lang in languages]
+
     web_id = os.path.split(caption_directory)[-1]
     try:
         videos_list_response = youtube_api.videos().list(
             part="snippet,localizations",
             id=video_id
         ).execute()
-        
+
         curr_data = videos_list_response['items'][0]
         snippet = curr_data['snippet']
         snippet['defaultLanguage'] = "en"
@@ -134,12 +137,14 @@ def upload_video_localizations(youtube_api, caption_directory, video_id):
         print(f"Failed to retrieve existing video snippet for {video_id}\n\n{e}\n\n")
         return
 
-    # Update the localization based on title translations (descriptions tbd)
+    # Update the localization based on title and description translations
     successes = []
     failures = []
     for language in os.listdir(caption_directory):
         lang_code = get_language_code(language)
         if lang_code is None:
+            continue
+        if languages is not None and language not in languages:
             continue
         title_file = os.path.join(caption_directory, language, "title.json")
         desc_file = os.path.join(caption_directory, language, "description.json")
