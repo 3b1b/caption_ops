@@ -105,11 +105,14 @@ def local_captions_match_youtube(srt_file):
     return does_yt_transcript_match_srt(transcript, srt_file)
 
 
-def find_mismatched_captions(video_url):
+def find_mismatched_captions(video_url, languages=None):
     """
     Searches for all local caption files where the online
     version does not match. Defaults to checking the community
-    version in any local language directories
+    version in any local language directories.
+
+    If `languages` is passed in, it limits the search to those, otherwise
+    it considers all languages in the repository
     """
     cap_dir = Path(url_to_directory(video_url))
     web_id = cap_dir.stem
@@ -122,9 +125,10 @@ def find_mismatched_captions(video_url):
         lang
         for lang in os.listdir(cap_dir)
         if os.path.isdir(Path(cap_dir, lang))
+        if languages is None or lang in languages
     ]
     language_code_to_transcript = {
-        t.language_code : t
+        t.language_code: t
         for t in transcripts
     }
     mismatches = []
