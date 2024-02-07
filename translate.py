@@ -1,6 +1,5 @@
 import os
 from functools import lru_cache
-from concurrent.futures import Executor
 from pathlib import Path
 
 from google.cloud import translate_v2 as translate
@@ -8,7 +7,6 @@ from google.oauth2 import service_account
 
 import deepl
 from google_auth_oauthlib.flow import google
-from torch import expand_copy
 
 from helpers import temporary_message
 from helpers import webids_to_directories
