@@ -109,15 +109,21 @@ def auto_caption(video_url, upload=True, translate=True, languages=None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Video url')
-    parser.add_argument('video_url', type=str, help='YouTube url')
+    parser.add_argument('video', type=str, help='YouTube url, or txt file with list of urls')
     parser.add_argument('--languages', nargs='+', type=str, help='languages')
     parser.add_argument('--no-upload', action='store_false', dest='upload', help='If set, upload will be disabled.')
     parser.add_argument('--no-translate', action='store_false', dest='translate', help='If set, translations will be disabled.')
     args = parser.parse_args()
 
-    auto_caption(
-        args.video_url,
-        upload=args.upload,
-        translate=args.translate,
-        languages=args.languages,
-    )
+    if args.video.endswith(".txt"):
+        urls = Path(args.video).read_text().split("\n")
+    else:
+        urls = [args.video]
+
+    for url in urls:
+        auto_caption(
+            url,
+            upload=args.upload,
+            translate=args.translate,
+            languages=args.languages,
+        )
