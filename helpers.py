@@ -70,6 +70,8 @@ def get_sentences(full_text, end_marks=SENTENCE_ENDING_PATTERN):
 def get_language_code(language):
     if language.lower() == "hebrew":
         return 'iw'
+    if language.lower() == "greek":
+        return "el"
     lang_obj = pycountry.languages.get(name=language)
     if lang_obj is None:
         return None
