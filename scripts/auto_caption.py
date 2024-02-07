@@ -72,6 +72,9 @@ def recaption_everything():
 def auto_caption(video_url, upload=True, translate=True, languages=None):
     youtube_api = get_youtube_api()
 
+    if languages is not None:
+        languages = [lang.lower() for lang in languages]
+
     # Get output directories
     caption_dir = url_to_directory(video_url)
     audio_dir = url_to_directory(video_url, root=AUDIO_DIRECTORY)
@@ -89,19 +92,19 @@ def auto_caption(video_url, upload=True, translate=True, languages=None):
 
     # Translate
     if translate:
-        languages = TARGET_LANGUAGES if languages is None else languages
-        translate_to_multiple_languages(word_timings_path, languages)
-        translate_video_details_multiple_languages(youtube_api, video_url, languages)
+        target_languages = TARGET_LANGUAGES if languages is None else languages
+        translate_to_multiple_languages(word_timings_path, target_languages)
+        translate_video_details_multiple_languages(youtube_api, video_url, target_languages)
 
     # Upload the results
     if upload:
         video_id = YouTube(video_url).video_id
-        for path in find_mismatched_captions(video_url):
+        for path in find_mismatched_captions(video_url, languages):
             try:
                 upload_caption(youtube_api, video_id, path, replace=True)
             except Exception as e:
                 print(f"Failed to upload {path}\n\n{e}\n\n")
-        upload_video_localizations(youtube_api, caption_dir, video_id)
+        upload_video_localizations(youtube_api, caption_dir, video_id, languages)
 
 
 if __name__ == "__main__":
