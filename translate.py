@@ -21,7 +21,7 @@ from download import download_video_title_and_description
 
 from srt_ops import write_srt_from_sentences_and_time_ranges
 
-from sentence_timings import get_sentences_with_timings
+from sentence_timings import extract_sentences
 
 SERVICE_ACCOUNT_ENV_VARIABLE_NAME = 'GOOGLE_TRANSLATION_SERVICE_ACCOUNT'
 DEEPL_KEY_FILE_ENV_VARIABLE_NAME = 'DEEPL_KEY_FILE'
@@ -126,15 +126,21 @@ def translate_sentences(en_sentences: list, target_language: str):
     ])
     if target_language_code in deepl_languages:
         try:
-            return deepl_translate_sentences(en_sentences, target_language_code)
+            result = deepl_translate_sentences(en_sentences, target_language_code)
         except deepl.DeepLException as e:
             print("Failed on DeepL translation, trying Google")
-    return google_translate_sentences(en_sentences, target_language_code)
+    result = google_translate_sentences(en_sentences, target_language_code)
+
+    # Add n_reviews
+    for obj in result:
+        obj["n_reviews"] = 0
+
+    return result
 
 
-def get_sentence_translation_file(word_timing_file, target_language):
+def get_sentence_translation_file(sentence_timings_path, target_language):
     result = Path(
-        Path(word_timing_file).parent.parent,
+        Path(sentence_timings_path).parent.parent,
         target_language.lower(),
         "sentence_translations.json"
     )
@@ -142,18 +148,16 @@ def get_sentence_translation_file(word_timing_file, target_language):
     return result
 
 
-def generate_sentence_translations_with_timings(word_timing_file, target_language):
+def generate_sentence_translations(sentence_timings_path, target_language):
     # Get sentences and timings
-    if not os.path.exists(word_timing_file):
-        raise Exception(f"No file {word_timing_file}")
-    en_sentences, time_ranges = get_sentences_with_timings(json_load(word_timing_file))
+    if not os.path.exists(sentence_timings_path):
+        raise Exception(f"No file {sentence_timings_path}")
 
-    # Call the Google api to translate, and save to file
-    sentence_translation_file = get_sentence_translation_file(word_timing_file, target_language)
+    # Call the DeepL or Google API to translate, and save to file
+    en_sentences = extract_sentences(sentence_timings_path)
+    sentence_translation_file = get_sentence_translation_file(sentence_timings_path, target_language)
     with temporary_message(f"Translating to {sentence_translation_file}"):
         translations = translate_sentences(en_sentences, target_language)
-    for obj, time_range in zip(translations, time_ranges):
-        obj["time_range"] = time_range
 
     json_dump(translations, sentence_translation_file)
 
@@ -164,10 +168,13 @@ def sentence_translations_to_srt(sentence_translation_file):
     translations = json_load(sentence_translation_file)
     directory = Path(sentence_translation_file).parent
     language = directory.stem
+    timing_file = Path(Path(directory.parent), "english", "sentence_timings.json")
+    if not os.path.exists(timing_file):
+        raise Exception(f"No file {timing_file}")
 
     # Use the time ranges and translated sentences to generate captions
     trans_sentences = [trans['translatedText'] for trans in translations]
-    time_ranges = [trans['time_range'] for trans in translations]
+    time_ranges = [obj[1:3] for obj in json_load(timing_file)]
     trans_srt = Path(directory, "auto_generated.srt")
     character_based = (language.lower() in ['chinese', 'japanese', 'korean'])
 
@@ -181,23 +188,23 @@ def sentence_translations_to_srt(sentence_translation_file):
     return trans_srt
 
 
-def write_translated_srt(word_timing_file, target_language):
+def write_translated_srt(sentence_timings_path, target_language):
     # If it hasn't been translated before, generated the translation
-    trans_file = get_sentence_translation_file(word_timing_file, target_language)
+    trans_file = get_sentence_translation_file(sentence_timings_path, target_language)
     if not os.path.exists(trans_file):
-        generate_sentence_translations_with_timings(word_timing_file, target_language)
-    # Use the translation to wrie the new srt
+        generate_sentence_translations(sentence_timings_path, target_language)
+    # Use the translation to write the new srt
     return sentence_translations_to_srt(trans_file)
 
 
-def translate_to_multiple_languages(word_timing_file, languages, skip_community_generated=True):
-    cap_dir = Path(word_timing_file).parent.parent
+def translate_to_multiple_languages(sentence_timings_path, languages, skip_community_generated=True):
+    cap_dir = Path(sentence_timings_path).parent.parent
     for language in languages:
         lang_dir = ensure_exists(Path(cap_dir, language.lower()))
         if skip_community_generated and any(f.endswith("community.srt") for f in os.listdir(lang_dir)):
             continue
         try:
-            write_translated_srt(word_timing_file, language)
+            write_translated_srt(sentence_timings_path, language)
         except Exception as e:
             print(f"Failed to translate {cap_dir.stem} to {language}\n{e}\n\n")
 
