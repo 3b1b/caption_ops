@@ -5,6 +5,8 @@ from pathlib import Path
 import json
 import re
 import operator as op
+from torch.nn.modules import instancenorm
+from tqdm.auto import tqdm as ProgressDisplay
 
 from helpers import get_all_video_urls
 from helpers import get_web_id_to_video_id_map
@@ -25,6 +27,7 @@ from srt_ops import write_srt_from_sentences_and_time_ranges
 from sentence_timings import get_sentence_timings_from_srt
 from sentence_timings import get_sentences_with_timings
 from sentence_timings import get_sentence_timings
+from sentence_timings import write_sentence_timing_file
 
 from upload import get_youtube_api
 from download import find_mismatched_captions
@@ -79,6 +82,35 @@ def fix_word_timings():
         ends = np.round(ends, 2)
         new_timings = list(zip(words, starts, ends))
         json_dump(new_timings, timing_file, indent=None)
+
+
+def create_sentence_translation_files():
+    for path in ProgressDisplay(get_all_files_with_ending("word_timings.json")):
+        write_sentence_timing_file(path)
+
+
+def remove_translation_time_ranges():
+    keys = [
+      "input",
+      "translatedText",
+      "model",
+      "n_reviews",
+    ]
+    for path in ProgressDisplay(get_all_files_with_ending("sentence_translations.json")):
+        try:
+            trans = json_load(path)
+            new_trans = []
+            for obj in trans:
+                new_obj = dict()
+                if obj.get("model", "") == "nmt":
+                    obj["model"] = "google_nmt"
+                for key in keys:
+                    if key in obj:
+                        new_obj[key] = obj[key]
+                new_trans.append(new_obj)
+            json_dump(new_trans, path)
+        except Exception as e:
+            print(f"Failed on {path}\n{e}\n\n")
 
 
 def update_sentence_timing_in_translation_files():
