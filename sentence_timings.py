@@ -13,6 +13,54 @@ from helpers import SENTENCE_ENDING_PATTERN
 from srt_ops import sub_rip_time_to_seconds
 
 
+def find_closest_aligning_substring_indices(
+    full_text,
+    sentences,
+    max_shift=100,
+    radius=20,
+    sentence_end_bias=2,
+):
+    """
+    Returns a list of indices such that the substrings of full_text
+    between adjascent indices roughly match the corresponding sentence
+    """
+    sent_end_indices = [
+        m.start() for m in re.finditer(SENTENCE_ENDING_PATTERN, full_text)
+    ]
+    sent_indices = [0]
+    for sent1, sent2 in zip(sentences, sentences[1:]):
+        last_index = sent_indices[-1]
+        mid_guess = last_index + len(sent1)
+        guess_range = range(
+            max(mid_guess - max_shift, last_index),
+            min(mid_guess + max_shift, len(full_text))
+        )
+        if len(guess_range) == 0:
+            sent_indices.append(last_index)
+            continue
+        left_dist = min(radius, len(sent1))
+        right_dist = min(radius, len(sent2))
+        query = " ".join([
+            sent1[-left_dist:],
+            sent2[:right_dist],
+        ])
+        lds = [
+            Levenshtein.distance(
+                full_text[guess - left_dist:guess + right_dist],
+                query,
+            ) + sentence_end_bias * int(guess not in sent_end_indices)
+            for guess in guess_range
+        ]
+        sent_indices.append(guess_range[np.argmin(lds)])
+    sent_indices.append(len(full_text))  # Add final fence post
+    return sent_indices
+
+
+def find_closest_aligning_substrings(full_text, sentences, **kwargs):
+    indices = find_closest_aligning_substring_indices(full_text, sentences, **kwargs)
+    return [full_text[i:j] for i, j in zip(indices, indices[1:])]
+
+
 def get_sentence_timings(
     # List of triplets, (word, start_time, end_time)
     words_with_timings,
@@ -20,8 +68,9 @@ def get_sentence_timings(
     # concatenating the words from words_with_timings, and can
     # be fuzzily matched to the appropriate positions there
     sentences,
-    # For fuzzy matching of sentences to indices in the full text
-    max_shift=20
+    # Paramaeters fuzzy matching of sentences to indices in the full text,
+    # max_shift and radius
+    **kwargs
 ):
     """
     Given the start and end times for a sequence of words, find the
@@ -41,21 +90,7 @@ def get_sentence_timings(
     word_indices = np.array([0, *np.cumsum(word_lens[:-1])])
 
     # Sentence indices, based on fuzzier matching
-    sent_indices = [0]
-    for sent1, sent2 in zip(sentences, sentences[1:]):
-        last = sent_indices[-1]
-        guess = last + len(sent1)
-        guess_range = list(range(
-            max(guess - max_shift, 0),
-            min(guess + max_shift, len(full_text)),
-        ))
-        if len(guess_range) == 0:
-            sent_indices.append(last)
-        else:
-            substrs = [full_text[i:i + len(sent2)] for i in guess_range]
-            lds = [Levenshtein.distance(substr, sent2) for substr in substrs]
-            sent_indices.append(guess_range[np.argmin(lds)])
-    sent_indices.append(len(full_text))  # Add final fence post
+    sent_indices = find_closest_aligning_substring_indices(full_text, sentences, **kwargs)
 
     time_ranges = []
     for lh, rh in zip(sent_indices, sent_indices[1:]):
@@ -72,11 +107,16 @@ def get_sentences_with_timings(words_with_timings):
     return sentences, time_ranges
 
 
-def write_sentence_timing_file(words_with_timings, file_path):
-    sentences, time_range = get_sentences_with_timings(words_with_timings)
+def write_sentence_timing_file(sentences, time_ranges, file_path):
+    # Add warning for long sentences
+    if max(map(len, sentences)) > 2000:
+        print(
+            f"Warning, very long sentence detected. Transcription" +\
+            "may not have accurately captured full punctuation."
+        )
     sentence_timings = [
         [sent, start, end]
-        for sent, (start, end) in zip(sentences, time_range)
+        for sent, (start, end) in zip(sentences, time_ranges)
     ]
     json_dump(sentence_timings, file_path)
 
