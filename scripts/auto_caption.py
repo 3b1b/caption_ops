@@ -21,6 +21,7 @@ from translate import translate_video_details_multiple_languages
 from translate import TARGET_LANGUAGES
 
 from srt_ops import srt_to_txt
+from sentence_timings import write_sentence_timing_file
 
 from download import find_mismatched_captions
 
@@ -34,9 +35,11 @@ def write_whisper_transcription_files(
     directory,
     word_timings_file_name="word_timings.json",
     captions_file_name="captions.srt",
+    sentence_timings_file_name="sentence_timings.json",
 ):
     word_timings_path = Path(directory, word_timings_file_name)
     captions_path = Path(directory, captions_file_name)
+    sentence_timings_path = Path(directory, sentence_timings_file_name)
 
     if not os.path.exists(word_timings_path):
         model = load_whisper_model()
@@ -45,11 +48,17 @@ def write_whisper_transcription_files(
         # Save the times for each individual word
         save_word_timings(transcription, word_timings_path)
     word_timings = json_load(word_timings_path)
+
     # Write an srt based on those word timeings
     words_with_timings_to_srt(word_timings, captions_path)
+
     # Write the transcription in plain text
     srt_to_txt(captions_path)
-    return word_timings_path, captions_path
+
+    # Write the sentence translation
+    write_sentence_timing_file(word_timings, sentence_timings_path)
+
+    return word_timings_path, captions_path, sentence_timings_path
 
 
 def recaption_everything():
@@ -85,7 +94,7 @@ def auto_caption(video_url, upload=True, translate=True, languages=None):
         download_youtube_audio(video_url, audio_file)
 
     # Transcribe
-    word_timings_path, captions_path = write_whisper_transcription_files(
+    _, _, sentence_timings_path = write_whisper_transcription_files(
         audio_file,
         directory=ensure_exists(Path(caption_dir, "english"))
     )
@@ -93,7 +102,7 @@ def auto_caption(video_url, upload=True, translate=True, languages=None):
     # Translate
     if translate:
         target_languages = TARGET_LANGUAGES if languages is None else languages
-        translate_to_multiple_languages(word_timings_path, target_languages)
+        translate_to_multiple_languages(sentence_timings_path, target_languages)
         translate_video_details_multiple_languages(youtube_api, video_url, target_languages)
 
     # Upload the results
