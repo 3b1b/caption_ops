@@ -20,7 +20,6 @@ from translate import translate_to_multiple_languages
 from translate import translate_video_details_multiple_languages
 from translate import TARGET_LANGUAGES
 
-from srt_ops import srt_to_txt
 from srt_ops import write_srt_from_sentences_and_time_ranges
 
 from sentence_timings import get_sentences_with_timings
