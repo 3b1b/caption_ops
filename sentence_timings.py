@@ -2,9 +2,12 @@ import re
 import numpy as np
 import pysrt
 import Levenshtein
+from pathlib import Path
 
 from helpers import get_sentences
 from helpers import interpolate
+from helpers import json_dump
+from helpers import json_load
 from helpers import SENTENCE_ENDING_PATTERN
 
 from srt_ops import sub_rip_time_to_seconds
@@ -67,6 +70,19 @@ def get_sentences_with_timings(words_with_timings):
     sentences = get_sentences("".join(words))
     time_ranges = get_sentence_timings(words_with_timings, sentences)
     return sentences, time_ranges
+
+
+def write_sentence_timing_file(words_with_timings, file_path):
+    sentences, time_range = get_sentences_with_timings(words_with_timings)
+    sentence_timings = [
+        [sent, start, end]
+        for sent, (start, end) in zip(sentences, time_range)
+    ]
+    json_dump(sentence_timings, file_path)
+
+
+def extract_sentences(sentence_timings_path):
+    return [obj[0] for obj in json_load(sentence_timings_path)]
 
 
 # Hopefully all functions below here are no longer needed
