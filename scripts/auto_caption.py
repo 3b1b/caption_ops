@@ -21,6 +21,9 @@ from translate import translate_video_details_multiple_languages
 from translate import TARGET_LANGUAGES
 
 from srt_ops import srt_to_txt
+from srt_ops import write_srt_from_sentences_and_time_ranges
+
+from sentence_timings import get_sentences_with_timings
 from sentence_timings import write_sentence_timing_file
 
 from download import find_mismatched_captions
@@ -36,10 +39,12 @@ def write_whisper_transcription_files(
     word_timings_file_name="word_timings.json",
     captions_file_name="captions.srt",
     sentence_timings_file_name="sentence_timings.json",
+    plain_text_file_name="transcript.txt",
 ):
     word_timings_path = Path(directory, word_timings_file_name)
     captions_path = Path(directory, captions_file_name)
     sentence_timings_path = Path(directory, sentence_timings_file_name)
+    plain_text_file_path = Path(directory, plain_text_file_name)
 
     if not os.path.exists(word_timings_path):
         model = load_whisper_model()
@@ -49,14 +54,16 @@ def write_whisper_transcription_files(
         save_word_timings(transcription, word_timings_path)
     word_timings = json_load(word_timings_path)
 
+    # Write the sentence timings
+    sentences, time_ranges = get_sentences_with_timings(word_timings)
+    write_sentence_timing_file(sentences, time_ranges, sentence_timings_path)
+
     # Write an srt based on those word timeings
-    words_with_timings_to_srt(word_timings, captions_path)
+    write_srt_from_sentences_and_time_ranges(sentences, time_ranges, captions_path)
 
     # Write the transcription in plain text
-    srt_to_txt(captions_path)
-
-    # Write the sentence translation
-    write_sentence_timing_file(word_timings, sentence_timings_path)
+    if not os.path.exists(plain_text_file_path):
+        Path(plain_text_file_path).write_text("\n".join(sentences))
 
     return word_timings_path, captions_path, sentence_timings_path
 
