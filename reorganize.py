@@ -249,15 +249,6 @@ def translation_files_from_community_captions():
 
 def reconstruct_sentence_translations_from_srt(translation_srt):
     translation_srt_path = Path(translation_srt)
-    language = translation_srt_path.parent.stem
-    if language in ["chinese", "japanese", "korean"]:
-        end_marks = PUNCTUATION_PATTERN + r"|\s"
-    else:
-        end_marks = SENTENCE_ENDING_PATTERN
-
-    tr_sents, tr_starts, tr_ends = get_sentence_timings_from_srt(
-        translation_srt, end_marks
-    )
 
     # Either read in, or initialize, the sentence translations
     trans_file = Path(translation_srt_path.parent, "sentence_translations.json")
@@ -265,15 +256,15 @@ def reconstruct_sentence_translations_from_srt(translation_srt):
         translation = json_load(trans_file)
         if len(translation) == 0:
             return
-        en_sents = [obj['input'] for obj in translation]
-        en_starts = [obj['start'] for obj in translation]
-        en_ends = [obj['end'] for obj in translation]
+        en_sent_times = [
+            [obj['input'], obj['start'], obj['end']]
+            for obj in translation
+        ]
     else:
         sentence_timings_file = Path(translation_srt_path.parent.parent, "english", "sentence_timings.json")
-        sentence_timings = json_load(sentence_timings_file)
-        if len(sentence_timings) == 0:
+        en_sent_times = json_load(sentence_timings_file)
+        if len(en_sent_times) == 0:
             return
-        en_sents, en_starts, en_ends = zip(*sentence_timings)
         translation = [
             dict(
                 input=en_sent,
@@ -282,31 +273,42 @@ def reconstruct_sentence_translations_from_srt(translation_srt):
                 start=start,
                 end=end,
             )
-            for en_sent, start, end in zip(en_sents, en_starts, en_ends)
+            for en_sent, start, end in en_sent_times
         ]
 
-    # Helper function to test whether two time ranges overlap
-    def overlaps(start1, end1, start2, end2):
-        return op.and_(
-            abs(start1 - start2) < abs(end1 - start2),
-            abs(end1 - end2) < abs(start1 - end2),
-        )
+    # Get chunks of the translated text from the srt, with timings
+    language = translation_srt_path.parent.stem
+    end_marks = PUNCTUATION_PATTERN
+    tr_sent_times = get_sentence_timings_from_srt(translation_srt, end_marks)
+    if len(tr_sent_times) < 0.5 * len(en_sent_times):
+        # Not enough punctuation, split by spaces instead
+        end_marks += r"|\s"
+        tr_sent_times = get_sentence_timings_from_srt(translation_srt, end_marks)
+
+
+    def precedes(tr_sent_group, en_sent_group):
+        en_sent, en_start, en_end = en_sent_group
+        tr_sent, tr_start, tr_end = tr_sent_group
+        return abs(tr_end - en_end) < abs(tr_start - en_end)
 
     # Reconstruct aligning sentences
-    merged_tr_sents = [
-        " ".join(
-            tr_sent
-            for tr_sent, tr_start, tr_end in zip(tr_sents, tr_starts, tr_ends)
-            if overlaps(tr_start, tr_end, en_start, en_end)
-            if re.sub(SENTENCE_ENDING_PATTERN, '', tr_sent).strip()
-        )
-        for en_start, en_end in zip(en_starts, en_ends)
-    ]
+    merged_tr_sents = []
+    index = 0
+    for en_sent_group in en_sent_times:
+        merged_tr_sent = ""
+        while precedes(tr_sent_times[index], en_sent_group):
+            merged_tr_sent += " " + tr_sent_times[index][0]
+            index += 1
+            if index >= len(tr_sent_times):
+                break
+        merged_tr_sents.append(merged_tr_sent.strip())
+        if index >= len(tr_sent_times):
+            break
 
     # Add these snippets to the translation file
     community_key = "from_community_srt"
     for obj, tr_sent in zip(translation, merged_tr_sents):
-        if len(tr_sent) == 0:
+        if len(tr_sent.strip()) == 0:
             continue
         obj[community_key] = tr_sent
 
