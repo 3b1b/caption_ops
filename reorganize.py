@@ -11,6 +11,7 @@ from tqdm.auto import tqdm as ProgressDisplay
 from helpers import get_all_video_urls
 from helpers import get_web_id_to_video_id_map
 from srt_ops import srt_to_txt
+from srt_ops import interpolate
 from helpers import temporary_message
 from helpers import json_load
 from helpers import json_dump
@@ -25,7 +26,7 @@ from translate import sentence_translations_to_srt
 from translate import translate_sentences
 from srt_ops import write_srt_from_sentences_and_time_ranges
 
-from sentence_timings import get_sentence_timings_from_srt
+from sentence_timings import get_substring_timings_from_srt
 from sentence_timings import get_sentences_with_timings
 from sentence_timings import get_sentence_timings
 from sentence_timings import write_sentence_timing_file
@@ -224,7 +225,7 @@ def reconstruct_sentence_translations():
         if is_fully_populated_translation(trans_file):
             continue
         try:
-            reconstruct_sentence_translations_from_srt(en_srt, lang_srt)
+            incorporate_srt_data_into_sentence_translations(en_srt, lang_srt)
             print(trans_file)
         except Exception as e:
             print(f"Failed to form {trans_file}\n\n{e}\n\n")
@@ -242,12 +243,12 @@ def translation_files_from_community_captions():
                 # Skip these ones, which have work in them
                 continue
         try:
-            reconstruct_sentence_translations_from_srt(srt_path)
+            incorporate_srt_data_into_sentence_translations(srt_path)
         except Exception as e:
             print(f"{srt}\n{e}\n\n")
 
 
-def reconstruct_sentence_translations_from_srt(translation_srt):
+def incorporate_srt_data_into_sentence_translations(translation_srt):
     translation_srt_path = Path(translation_srt)
 
     # Either read in, or initialize, the sentence translations
@@ -277,43 +278,42 @@ def reconstruct_sentence_translations_from_srt(translation_srt):
         ]
 
     # Get chunks of the translated text from the srt, with timings
-    language = translation_srt_path.parent.stem
-    end_marks = PUNCTUATION_PATTERN
-    tr_sent_times = get_sentence_timings_from_srt(translation_srt, end_marks)
-    if len(tr_sent_times) < 0.5 * len(en_sent_times):
-        # Not enough punctuation, split by spaces instead
-        end_marks += r"|\s"
-        tr_sent_times = get_sentence_timings_from_srt(translation_srt, end_marks)
+    tr_chunk_times = get_substring_timings_from_srt(
+        translation_srt,
+        end_marks=PUNCTUATION_PATTERN,
+        max_length=90,
+    )
 
-
-    def precedes(tr_sent_group, en_sent_group):
+    def precedes(tr_sent_group, en_sent_group, alpha=0.5):
         en_sent, en_start, en_end = en_sent_group
         tr_sent, tr_start, tr_end = tr_sent_group
-        return abs(tr_end - en_end) < abs(tr_start - en_end)
+        mid_time = interpolate(tr_start, tr_end, alpha)
+        return mid_time < en_end
 
     # Reconstruct aligning sentences
-    merged_tr_sents = []
+    tr_sents = []
     index = 0
     for en_sent_group in en_sent_times:
-        merged_tr_sent = ""
-        while precedes(tr_sent_times[index], en_sent_group):
-            merged_tr_sent += " " + tr_sent_times[index][0]
+        tr_sent = ""
+        while precedes(tr_chunk_times[index], en_sent_group):
+            tr_sent += " " + tr_chunk_times[index][0].strip()
             index += 1
-            if index >= len(tr_sent_times):
+            if index >= len(tr_chunk_times):
                 break
-        merged_tr_sents.append(merged_tr_sent.strip())
-        if index >= len(tr_sent_times):
+        tr_sents.append(tr_sent.strip())
+        if index >= len(tr_chunk_times):
             break
 
     # Add these snippets to the translation file
     community_key = "from_community_srt"
-    for obj, tr_sent in zip(translation, merged_tr_sents):
+    for obj, tr_sent in zip(translation, tr_sents):
+        obj.pop(community_key, "")
         if len(tr_sent.strip()) == 0:
             continue
         obj[community_key] = tr_sent
 
     # Ensure correct order
-    key_order = list(trans[0].keys())
+    key_order = list(translation[0].keys())
     index = 3 if 'model' in key_order else 2
     key_order.insert(index, community_key)
     translation = [
@@ -326,6 +326,25 @@ def reconstruct_sentence_translations_from_srt(translation_srt):
     ]
 
     json_dump(translation, trans_file)
+
+
+
+def fix_key_order():
+    for trans_file in get_all_files_with_ending("sentence_translations.json"):
+        trans = json_load(trans_file)
+        language = Path(trans_file).parent.stem
+        # Ensure correct order
+        key_order = ["input", "translatedText", "model", "from_community_srt", "n_reviews", "start", "end"]
+        trans = [
+            {
+                key: obj[key]
+                for key in key_order
+                if key in obj
+            }
+            for obj in trans
+        ]
+
+        json_dump(trans, trans_file)
 
 
 def clean_broken_translations():
