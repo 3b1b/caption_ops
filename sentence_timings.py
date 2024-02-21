@@ -125,36 +125,50 @@ def extract_sentences(sentence_timings_path):
     return [obj[0] for obj in json_load(sentence_timings_path)]
 
 
-# Hopefully all functions below here are no longer needed
-def get_sentence_timings_from_srt(srt_file, end_marks=SENTENCE_ENDING_PATTERN):
+def get_substring_timings_from_srt(srt_file, end_marks=SENTENCE_ENDING_PATTERN, split_at_segments=False, max_length=np.inf):
     subs = pysrt.open(srt_file)
     full_text = ""
     sent_delim_times = [sub_rip_time_to_seconds(subs[0].start)]
-    for sub in subs:
-        text = sub.text.replace("\n", " ").strip() + " "
-        full_text += text
+    result = []
 
+    for sub in subs:
+        text = sub.text.replace("\n", " ").strip()
+        if len(text) == 0:
+            continue
+        full_text = " ".join([full_text, text])
         start = sub_rip_time_to_seconds(sub.start)
         end = sub_rip_time_to_seconds(sub.end)
-        end_mark_positions = [match.end() for match in re.finditer(end_marks, text)]
-        if len(end_mark_positions) == 0:
-            continue
-        fractions = np.array(end_mark_positions) / len(text)
-        for frac in fractions:
-            sent_delim_times.append(interpolate(start, end, frac))
 
-    sentences = [
-        (sentence + mark).strip()
-        for sentence, mark in zip(
-            re.split(end_marks, full_text),
-            re.findall(end_marks, full_text),
-        )
-    ]
-    starts = sent_delim_times[:-1]
-    ends = sent_delim_times[1:]
-    return list(zip(sentences, starts, ends))
+        end_matches = [match.end() for match in re.finditer(end_marks, text)]
+        split_indices = [0, *end_matches, len(text)]
+        times = [interpolate(start, end, index / len(text)) for index in split_indices]
+        substrs = [text[lh:rh] for lh, rh in zip(split_indices, split_indices[1:])]
+
+        result.extend([
+            [substr, start, end]
+            for substr, start, end in zip(substrs, times, times[1:])
+            if len(substr) > 0
+        ])
+
+    if not split_at_segments:
+        merged_pieces = []
+        all_pieces = list(result)
+        curr = all_pieces.pop(0)
+        while all_pieces:
+            if re.findall(end_marks, curr[0]) or len(curr[0]) > max_length:
+                merged_pieces.append(curr)
+                curr = all_pieces.pop(0)
+            else:
+                new = all_pieces.pop(0)
+                curr[0] = " ".join([curr[0], new[0]])  # Merge strings
+                curr[2] = new[2]  # Push back end time
+        merged_pieces.append(curr)
+        result = merged_pieces
+
+    return result
 
 
+# Hopefully all functions below here are no longer needed
 def index_of_nearest_match(word, time, all_words, all_times, index_radius=5):
     guess = np.argmin(np.abs(all_times - time))
     lev_dist = Levenshtein.distance(word, all_words[guess])
