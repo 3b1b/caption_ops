@@ -154,10 +154,15 @@ def generate_sentence_translations(sentence_timings_path, target_language):
         raise Exception(f"No file {sentence_timings_path}")
 
     # Call the DeepL or Google API to translate, and save to file
-    en_sentences = extract_sentences(sentence_timings_path)
+    sentences, starts, ends = zip(*json_load(sentence_timings_path))
     sentence_translation_file = get_sentence_translation_file(sentence_timings_path, target_language)
     with temporary_message(f"Translating to {sentence_translation_file}"):
-        translations = translate_sentences(en_sentences, target_language)
+        translations = translate_sentences(sentences, target_language)
+
+    # Add in timings
+    for obj, start, end in zip(translations, starts, ends):
+        obj["start"] = start
+        obj["end"] = end
 
     json_dump(translations, sentence_translation_file)
 
