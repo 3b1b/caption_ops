@@ -18,6 +18,7 @@ from helpers import get_language_code
 from helpers import get_all_files_with_ending
 from helpers import CAPTIONS_DIRECTORY
 from helpers import SENTENCE_ENDING_PATTERN
+from helpers import PUNCTUATION_PATTERN
 
 from translate import get_sentence_translation_file
 from translate import sentence_translations_to_srt
@@ -111,6 +112,19 @@ def remove_translation_time_ranges():
             json_dump(new_trans, path)
         except Exception as e:
             print(f"Failed on {path}\n{e}\n\n")
+
+
+def add_translation_time_ranges():
+    for trans_file in ProgressDisplay(get_all_files_with_ending("sentence_translations.json")):
+        trans = json_load(trans_file)
+        in_sents = [t['input'] for t in trans]
+        word_timings_file = Path(Path(trans_file).parent.parent, "english", "word_timings.json")
+        word_timings = json_load(word_timings_file)
+        time_ranges = get_sentence_timings(word_timings, in_sents)
+        for obj, (start, end) in zip(trans, time_ranges):
+            obj['start'] = start
+            obj['end'] = end
+        json_dump(trans, trans_file)
 
 
 def update_sentence_timing_in_translation_files():
@@ -216,47 +230,100 @@ def reconstruct_sentence_translations():
             print(f"Failed to form {trans_file}\n\n{e}\n\n")
 
 
-def reconstruct_sentence_translations_from_srt(english_srt, translation_srt):
-    en_sents, en_time_ranges = get_sentence_timings_from_srt(english_srt)
-    tr_sents, tr_time_ranges = get_sentence_timings_from_srt(translation_srt)
+def translation_files_from_community_captions():
+    srts = get_all_files_with_ending("community.srt")
+    for srt in ProgressDisplay(srts):
+        srt_path = Path(srt)
+        trans_file = Path(srt_path.parent, "sentence_translations.json")
+        if os.path.exists(trans_file):
+            trans = json_load(trans_file)
+            reviewed = [t['n_reviews'] > 0 for t in trans]
+            if any(reviewed) or len(trans) == 0:
+                # Skip these ones, which have work in them
+                continue
+        try:
+            reconstruct_sentence_translations_from_srt(srt_path)
+        except Exception as e:
+            print(f"{srt}\n{e}\n\n")
 
-    # Reconstruct aligning sentences
-    def overlaps(range1, range2):
-        start1, end1 = range1
-        start2, end2 = range2
+
+def reconstruct_sentence_translations_from_srt(translation_srt):
+    translation_srt_path = Path(translation_srt)
+    language = translation_srt_path.parent.stem
+    if language in ["chinese", "japanese", "korean"]:
+        end_marks = PUNCTUATION_PATTERN + r"|\s"
+    else:
+        end_marks = SENTENCE_ENDING_PATTERN
+
+    tr_sents, tr_starts, tr_ends = get_sentence_timings_from_srt(
+        translation_srt, end_marks
+    )
+
+    # Either read in, or initialize, the sentence translations
+    trans_file = Path(translation_srt_path.parent, "sentence_translations.json")
+    if os.path.exists(trans_file):
+        translation = json_load(trans_file)
+        if len(translation) == 0:
+            return
+        en_sents = [obj['input'] for obj in translation]
+        en_starts = [obj['start'] for obj in translation]
+        en_ends = [obj['end'] for obj in translation]
+    else:
+        sentence_timings_file = Path(translation_srt_path.parent.parent, "english", "sentence_timings.json")
+        sentence_timings = json_load(sentence_timings_file)
+        if len(sentence_timings) == 0:
+            return
+        en_sents, en_starts, en_ends = zip(*sentence_timings)
+        translation = [
+            dict(
+                input=en_sent,
+                translatedText="",
+                n_reviews=0,
+                start=start,
+                end=end,
+            )
+            for en_sent, start, end in zip(en_sents, en_starts, en_ends)
+        ]
+
+    # Helper function to test whether two time ranges overlap
+    def overlaps(start1, end1, start2, end2):
         return op.and_(
             abs(start1 - start2) < abs(end1 - start2),
             abs(end1 - end2) < abs(start1 - end2),
         )
 
+    # Reconstruct aligning sentences
     merged_tr_sents = [
-        merge_split_decimals("".join(
+        " ".join(
             tr_sent
-            for tr_sent, tr_range in zip(tr_sents, tr_time_ranges)
-            if overlaps(tr_range, en_range)
+            for tr_sent, tr_start, tr_end in zip(tr_sents, tr_starts, tr_ends)
+            if overlaps(tr_start, tr_end, en_start, en_end)
             if re.sub(SENTENCE_ENDING_PATTERN, '', tr_sent).strip()
-        ))
-        for en_range in en_time_ranges
-    ]
-
-    # Structure the translation prepare save
-    translation = [
-        dict(
-            input=en_sent,
-            translatedText=tr_sent,
-            model="nmt",
         )
-        for en_sent, tr_sent in zip(en_sents, merged_tr_sents)
+        for en_start, en_end in zip(en_starts, en_ends)
     ]
-    language_name = Path(translation_srt).parent.stem
-    trans_file = get_sentence_translation_file(english_srt, language_name)
 
-    # Add time ranges based on english srt file
-    for obj, time_range in zip(translation, en_time_ranges):
-        obj["time_range"] = time_range
+    # Add these snippets to the translation file
+    community_key = "from_community_srt"
+    for obj, tr_sent in zip(translation, merged_tr_sents):
+        if len(tr_sent) == 0:
+            continue
+        obj[community_key] = tr_sent
 
-    with open(trans_file, 'w', encoding='utf-8') as fp:
-        json.dump(translation, fp, indent=1, ensure_ascii=False)
+    # Ensure correct order
+    key_order = list(trans[0].keys())
+    index = 3 if 'model' in key_order else 2
+    key_order.insert(index, community_key)
+    translation = [
+        {
+            key: obj[key]
+            for key in key_order
+            if key in obj
+        }
+        for obj in translation
+    ]
+
+    json_dump(translation, trans_file)
 
 
 def clean_broken_translations():
