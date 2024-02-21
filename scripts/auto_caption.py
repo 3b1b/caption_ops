@@ -54,11 +54,13 @@ def write_whisper_transcription_files(
     word_timings = json_load(word_timings_path)
 
     # Write the sentence timings
-    sentences, time_ranges = get_sentences_with_timings(word_timings)
-    write_sentence_timing_file(sentences, time_ranges, sentence_timings_path)
+    if not os.path.exists(sentence_timings_path):
+        sentences, time_ranges = get_sentences_with_timings(word_timings)
+        write_sentence_timing_file(sentences, time_ranges, sentence_timings_path)
 
     # Write an srt based on those word timeings
-    write_srt_from_sentences_and_time_ranges(sentences, time_ranges, captions_path)
+    if not os.path.exists(captions_path):
+        write_srt_from_sentences_and_time_ranges(sentences, time_ranges, captions_path)
 
     # Write the transcription in plain text
     if not os.path.exists(plain_text_file_path):
@@ -67,24 +69,7 @@ def write_whisper_transcription_files(
     return word_timings_path, captions_path, sentence_timings_path
 
 
-def recaption_everything():
-    urls = get_all_video_urls()
-
-    for url in urls:
-        caption_dir = url_to_directory(url)
-        audio_dir = url_to_directory(url, root=AUDIO_DIRECTORY)
-        audio_file = Path(audio_dir, "original_audio.mp4")
-        if not os.path.exists(audio_file):
-            download_youtube_audio(url, audio_file)
-        # Transcribe
-        try:
-            en_dir = ensure_exists(Path(caption_dir, "english"))
-            write_whisper_transcription_files(audio_file, en_dir)
-        except Exception as e:
-            print(f"\n\n{e}\n\n")
-
-
-def auto_caption(video_url, upload=True, translate=True, languages=None):
+def auto_caption(video_url, upload=True, languages=None):
     youtube_api = get_youtube_api()
 
     if languages is not None:
@@ -106,10 +91,11 @@ def auto_caption(video_url, upload=True, translate=True, languages=None):
     )
 
     # Translate
-    if translate:
-        target_languages = TARGET_LANGUAGES if languages is None else languages
-        translate_to_multiple_languages(sentence_timings_path, target_languages)
-        translate_video_details_multiple_languages(youtube_api, video_url, target_languages)
+    if languages is not None:
+        if languages[0] == "all":
+            languages = TARGET_LANGUAGES
+        translate_to_multiple_languages(sentence_timings_path, languages)
+        translate_video_details_multiple_languages(youtube_api, video_url, languages)
 
     # Upload the results
     if upload:
@@ -127,7 +113,6 @@ if __name__ == "__main__":
     parser.add_argument('video', type=str, help='YouTube url, or txt file with list of urls')
     parser.add_argument('--languages', nargs='+', type=str, help='languages')
     parser.add_argument('--no-upload', action='store_false', dest='upload', help='If set, upload will be disabled.')
-    parser.add_argument('--no-translate', action='store_false', dest='translate', help='If set, translations will be disabled.')
     args = parser.parse_args()
 
     if args.video.endswith(".txt"):
@@ -139,6 +124,5 @@ if __name__ == "__main__":
         auto_caption(
             url,
             upload=args.upload,
-            translate=args.translate,
             languages=args.languages,
         )
