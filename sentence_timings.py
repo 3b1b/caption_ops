@@ -150,8 +150,9 @@ def get_sentence_timings_from_srt(srt_file, end_marks=SENTENCE_ENDING_PATTERN):
             re.findall(end_marks, full_text),
         )
     ]
-    time_ranges = list(zip(sent_delim_times[:-1], sent_delim_times[1:]))
-    return sentences, time_ranges
+    starts = sent_delim_times[:-1]
+    ends = sent_delim_times[1:]
+    return sentences, starts, ends
 
 
 def index_of_nearest_match(word, time, all_words, all_times, index_radius=5):
