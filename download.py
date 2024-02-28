@@ -138,7 +138,7 @@ def find_mismatched_captions(video_url, languages=None):
         srts = [os.path.join(lang_dir, f) for f in os.listdir(lang_dir) if f.endswith(".srt")]
         if not srts:
             continue
-        # If any community contributions are available, pick
+        # If any community contributions are available, pick that
         community_contributions = [f for f in srts if f.endswith("_community.srt")]
         if community_contributions:
             default_srt = community_contributions[0]

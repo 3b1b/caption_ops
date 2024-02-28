@@ -8,6 +8,7 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.http import MediaFileUpload
 from googleapiclient.errors import HttpError
 import html
+import time
 
 from pathlib import Path
 
@@ -92,6 +93,7 @@ def upload_caption(youtube_api, video_id, caption_file, name="", replace=False):
     language_code = get_language_code(Path(caption_file).parent.stem)
     if replace:
         delete_captions(youtube_api, video_id, language_code)
+        time.sleep(0.5)  # Needs better use of async
     # Insert new captions
     insert_request = youtube_api.captions().insert(
         part="snippet",

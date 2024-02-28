@@ -1,3 +1,6 @@
+from __future__ import annotations
+from typing import Optional
+
 import argparse
 import os
 from pytube import YouTube
@@ -69,11 +72,10 @@ def write_whisper_transcription_files(
     return word_timings_path, captions_path, sentence_timings_path
 
 
-def auto_caption(video_url, upload=True, languages=None):
+def auto_caption(video_url, upload=True, languages: Optional[list]=None):
     youtube_api = get_youtube_api()
 
-    if languages is not None:
-        languages = [lang.lower() for lang in languages]
+    languages = list(map(str.lower, languages or []))
 
     # Get output directories
     caption_dir = url_to_directory(video_url)
@@ -91,21 +93,21 @@ def auto_caption(video_url, upload=True, languages=None):
     )
 
     # Translate
-    if languages is not None:
-        if languages[0] == "all":
-            languages = TARGET_LANGUAGES
+    if languages:
         translate_to_multiple_languages(sentence_timings_path, languages)
         translate_video_details_multiple_languages(youtube_api, video_url, languages)
 
     # Upload the results
     if upload:
         video_id = YouTube(video_url).video_id
-        for path in find_mismatched_captions(video_url, languages):
+        for path in find_mismatched_captions(video_url, ["english", *languages]):
+            print(path)
             try:
                 upload_caption(youtube_api, video_id, path, replace=True)
             except Exception as e:
                 print(f"Failed to upload {path}\n\n{e}\n\n")
-        upload_video_localizations(youtube_api, caption_dir, video_id, languages)
+        if languages:
+            upload_video_localizations(youtube_api, caption_dir, video_id, languages)
 
 
 if __name__ == "__main__":
@@ -115,14 +117,20 @@ if __name__ == "__main__":
     parser.add_argument('--no-upload', action='store_false', dest='upload', help='If set, upload will be disabled.')
     args = parser.parse_args()
 
+    # Check if arg was a url, or text file full of urls
     if args.video.endswith(".txt"):
         urls = Path(args.video).read_text().split("\n")
     else:
         urls = [args.video]
 
+    # Pull out languages
+    languages = args.languages or []
+    if languages and (languages[0] == "all"):
+        languages = TARGET_LANGUAGES
+
     for url in urls:
         auto_caption(
             url,
             upload=args.upload,
-            languages=args.languages,
+            languages=languages,
         )

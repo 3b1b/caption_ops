@@ -129,7 +129,7 @@ def translate_sentences(en_sentences: list, target_language: str):
             result = deepl_translate_sentences(en_sentences, target_language_code)
         except deepl.DeepLException as e:
             print("Failed on DeepL translation, trying Google")
-    result = google_translate_sentences(en_sentences, target_language_code)
+            result = google_translate_sentences(en_sentences, target_language_code)
 
     # Add n_reviews
     for obj in result:
@@ -173,23 +173,20 @@ def sentence_translations_to_srt(sentence_translation_file):
     translations = json_load(sentence_translation_file)
     directory = Path(sentence_translation_file).parent
     language = directory.stem
-    timing_file = Path(Path(directory.parent), "english", "sentence_timings.json")
-    if not os.path.exists(timing_file):
-        raise Exception(f"No file {timing_file}")
 
     # Use the time ranges and translated sentences to generate captions
     trans_sentences = [trans['translatedText'] for trans in translations]
-    time_ranges = [obj[1:3] for obj in json_load(timing_file)]
+    time_ranges = [[trans['start'], trans['end']] for trans in translations]
     trans_srt = Path(directory, "auto_generated.srt")
     character_based = (language.lower() in ['chinese', 'japanese', 'korean'])
 
-    write_srt_from_sentences_and_time_ranges(
-        sentences=trans_sentences,
-        time_ranges=time_ranges,
-        output_file_path=trans_srt,
-        max_chars_per_segment=(30 if character_based else 90),
-    )
-    print(f"Successfully wrote {trans_srt}")
+    with temporary_message(f"Writing {trans_srt}"):
+        write_srt_from_sentences_and_time_ranges(
+            sentences=trans_sentences,
+            time_ranges=time_ranges,
+            output_file_path=trans_srt,
+            max_chars_per_segment=(30 if character_based else 90),
+        )
     return trans_srt
 
 
@@ -202,7 +199,7 @@ def write_translated_srt(sentence_timings_path, target_language):
     return sentence_translations_to_srt(trans_file)
 
 
-def translate_to_multiple_languages(sentence_timings_path, languages, skip_community_generated=True):
+def translate_to_multiple_languages(sentence_timings_path, languages, skip_community_generated=False):
     cap_dir = Path(sentence_timings_path).parent.parent
     for language in languages:
         lang_dir = ensure_exists(Path(cap_dir, language.lower()))
