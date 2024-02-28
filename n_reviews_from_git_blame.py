@@ -15,6 +15,7 @@ GITHUB_API_URL = "https://api.github.com"
 OWNER = "3b1b"
 REPO = "captions"
 LOCAL_REPO = "/Users/grant/cs/captions/"  # Should change
+BRANCH_NAME = "track-reviewers"
 
 
 # Get the commit history for the file
@@ -69,7 +70,7 @@ def get_contributors_to_translated_lines(path):
             if contributor not in line_contributors:
                 line_contributors.append(contributor)
 
-    check_output(f"git -C {LOCAL_REPO} checkout track-reviewers", shell=True)
+    check_output(f"git -C {LOCAL_REPO} checkout {BRANCH_NAME}", shell=True)
     return sent_to_contributors
 
 
@@ -95,12 +96,17 @@ def extract_contributor(blame_line):
 
 
 def update_translation_file(path):
+    # Check out new branc, sync with main
+    check_output(f"git -C {LOCAL_REPO} checkout {BRANCH_NAME}", shell=True)
+    check_output(f"git -C {LOCAL_REPO} pull origin main", shell=True)
+
+    # Assemble lists of reviewers on each line
     n_rev_key = "n_reviews"
     sent_to_contributors = get_contributors_to_translated_lines(path)
+
+    # Update the sentence translation files
     trans = json_load(path)
-
     all_objs = trans if isinstance(trans, list) else [trans]
-
     for obj in all_objs:
         sent = obj['translatedText']
         if sent_to_contributors.get(sent, []):
@@ -150,7 +156,7 @@ def main():
     for suffix in suffixes:
         path = os.path.join(LOCAL_REPO, suffix)
         try:
-            update_translation_file(path)
+            update_translation_file(str(path))
         except Exception as e:
             print(f"Failed on {path}\n{e}\n\n")
             continue
