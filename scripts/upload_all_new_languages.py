@@ -18,6 +18,8 @@ def upload_all_new_languages():
         try:
             upload_all_new_captions(youtube_api, caption_dir, video_id)
         except Exception as e:
+            # Better exception handling is required here, we should only
+            # get here if the quota has been exceeded.
             # This should only happen when the quota has been reached
             now = datetime.datetime.now().strftime("%H:%M:%S")
             print(f"Time is now {now}, sleeping for 12 hours")

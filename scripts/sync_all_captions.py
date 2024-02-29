@@ -2,6 +2,7 @@ import argparse
 import os
 from pathlib import Path
 from pytube.extract import video_id as extract_video_id
+from pytube.extract import RegexMatchError
 import numpy as np
 import shutil
 
@@ -24,18 +25,40 @@ from upload import upload_caption
 from upload import upload_video_localizations
 
 
-def sync_all_captions(video):
-    if "youtu" in video:
-        video_url = video
-    else:
-        web_id = video
-        wid_to_vid = get_web_id_to_video_id_map()
-        if web_id not in wid_to_vid:
-            raise Exception(f"Cannot find {web_id}")
-        video_url = f"https://youtu.be/{wid_to_vid[web_id]}"
+def convert_to_url(video_str):
+    try:
+        extract_video_id(video_str)
+        return video_str
+    except RegexMatchError:
+        pass
+    vid = get_web_id_to_video_id_map().get(video_str, None)
+    if vid is None:
+        raise Exception(f"Cannot find {video_str}")
+    return f"https://youtu.be/{vid}"
 
+
+def sync_srts_to_translations(trans_file):
+    trans = json_load(trans_file)
+    has_blanks = any(obj['translatedText'] == "" and obj['input'] != "" for obj in trans)
+    proportion_reviewed = np.mean([obj['n_reviews'] > 0 for obj in trans])
+
+    if has_blanks:
+        return
+
+    # Check if a recent review suggest that any existing community
+    # contributions should be considered outdated
+    folder = Path(trans_file).parent
+    if proportion_reviewed > 0.5:
+        community_files = get_all_files_with_ending("community.srt", root=str(folder))
+        for file in community_files:
+            shutil.move(file, file.replace("community.srt", "community_old.srt"))
+
+    return sentence_translations_to_srt(trans_file)
+
+def sync_all_captions(video_url: str):
     youtube_api = get_youtube_api()
     folder = url_to_directory(video_url)
+    video_id = extract_video_id(video_url)
 
     # Create english srts
     en_folder = Path(folder, "english")
@@ -50,30 +73,16 @@ def sync_all_captions(video):
 
     # Create translation srts
     for trans_file in get_all_files_with_ending("sentence_translations.json", root=str(folder)):
-        trans = json_load(trans_file)
-        if any(obj['translatedText'] == "" and obj['input'] != "" for obj in trans):
-            continue
-
-        sentence_translations_to_srt(trans_file)
-
-        # Check if a recent review suggest that any existing community
-        # contributions should be considered outdated
-        proportion_reviewed = np.mean([obj['n_reviews'] > 0 for obj in trans])
-        community_files = get_all_files_with_ending(
-            "community.srt",
-            root=str(Path(trans_file).parent)
-        )
-        if proportion_reviewed > 0.5 and any(community_files):
-            for file in community_files:
-                shutil.move(file, file.replace("community.srt", "community_old.srt"))
+        sync_srts_to_translations(trans_file)
 
     # Upload mismatches
     for path in find_mismatched_captions(video_url):
-        video_id = extract_video_id(video_url)
         try:
             upload_caption(youtube_api, video_id, path, replace=True)
         except Exception as e:
             print(f"Failed to upload {path}\n\n{e}\n\n")
+
+    upload_video_localizations(youtube_api, folder, video_id)
 
 
 if __name__ == "__main__":
@@ -86,7 +95,7 @@ if __name__ == "__main__":
     else:
         videos = [args.video]
 
-    for video in videos:
+    for video in map(convert_to_url, videos):
         try:
             sync_all_captions(video)
         except Exception as e:
