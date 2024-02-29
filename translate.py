@@ -130,6 +130,8 @@ def translate_sentences(en_sentences: list, target_language: str):
         except deepl.DeepLException as e:
             print("Failed on DeepL translation, trying Google")
             result = google_translate_sentences(en_sentences, target_language_code)
+    else:
+        result = google_translate_sentences(en_sentences, target_language_code)
 
     # Add n_reviews
     for obj in result:
