@@ -107,16 +107,18 @@ def upload_caption(youtube_api, video_id, caption_file, name="", replace=False):
         },
         media_body=MediaFileUpload(caption_file)
     )
+    web_id, langauge = str(caption_file).split(os.sep)[-3:-1]
     try:
-        with temporary_message(f"Uploading {caption_file} to {video_id}"):
+        with temporary_message(f"Uploading {langauge} captions to {web_id}"):
             insert_request.execute()
-        print(f"Captions from {caption_file} uploaded.")
+        print(f"Uploaded {langauge} captions to {web_id} successfully")
     except Exception as e:
         if "exceeded" in str(e) and "quota" in str(e):
             print("Quota exceeded")
             raise Exception(e)
         else:
-            print(f"Failed to upload {caption_file}\n\n{str(e)}\n")
+            print(f"Failed to upload {langauge} captions to {web_id}")
+            print("\n{str(e)}\n")
 
 
 def upload_video_localizations(youtube_api, caption_directory, video_id, languages=None):
