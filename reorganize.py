@@ -332,7 +332,11 @@ def incorporate_srt_data_into_sentence_translations(translation_srt):
 def fix_key_order():
     for trans_file in get_all_files_with_ending("sentence_translations.json"):
         trans = json_load(trans_file)
-        language = Path(trans_file).parent.stem
+        if any("start" not in obj or "end" not in obj for obj in trans):
+            print(trans_file)
+
+    for trans_file in get_all_files_with_ending("title.json"):
+        trans = [json_load(trans_file)]
         # Ensure correct order
         key_order = ["input", "translatedText", "model", "from_community_srt", "n_reviews", "start", "end"]
         trans = [
@@ -344,7 +348,7 @@ def fix_key_order():
             for obj in trans
         ]
 
-        json_dump(trans, trans_file)
+        json_dump(trans[0], trans_file)
 
 
 def clean_broken_translations():
@@ -401,3 +405,46 @@ def move_audio_files(src_dir, trg_dir, ext=".mp4"):
 def all_srt_to_txt():
     for file in get_all_files_with_ending(os.path.join("english", "captions.srt")):
         srt_to_txt(file)
+
+
+def fill_empty_translations(urls):
+    from translate import TARGET_LANGUAGES
+
+    languages = list(map(str.lower, TARGET_LANGUAGES))
+    paths = Path(CAPTIONS_DIRECTORY).rglob("sentence_translations.json")
+    blank_paths = []
+    n_chars = 0
+    for path in paths:
+        if path.parent.stem not in languages:
+            continue
+        trans = json_load(path)
+        if any(obj['translatedText'] for obj in trans):
+            continue
+
+        en_sents = [obj['input'] for obj in trans]
+        language = path.parent.stem
+
+        # Update translation
+        with temporary_message(f"Translating {path}"):
+            new_translation = translate_sentences(en_sents, language)
+        for obj, new_obj in zip(trans, new_translation):
+            obj['translatedText'] = new_obj['translatedText']
+            if 'model' in new_obj:
+                obj['model'] = new_obj['model']
+
+        # Ensure correct order
+        key_order = ["input", "translatedText", "model", "from_community_srt", "n_reviews", "start", "end"]
+        trans = [
+            {
+                key: obj[key]
+                for key in key_order
+                if key in obj
+            }
+            for obj in trans
+        ]
+
+        json_dump(trans, path)
+
+        blank_paths.append(path)
+        n_chars += sum(map(len, en_sents))
+
