@@ -1,9 +1,9 @@
-from google.auth import external_account_authorized_user
 import requests
 import re
 import os
 import subprocess
 from subprocess import check_output
+from pathlib import Path
 from collections import OrderedDict
 
 from helpers import json_load
@@ -20,7 +20,7 @@ BRANCH_NAME = "track-reviewers"
 
 # Get the commit history for the file
 def get_commit_history(path):
-    path = path.replace(LOCAL_REPO, "")
+    path = str(path).replace(LOCAL_REPO, "")
     commits_url = f"{GITHUB_API_URL}/repos/{OWNER}/{REPO}/commits?path={path}"
     commits = requests.get(commits_url).json()
     return [commit['sha'] for commit in commits]
