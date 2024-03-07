@@ -19,12 +19,17 @@ from helpers import get_language_code
 from helpers import json_load
 from helpers import get_video_id_to_web_id_map
 from helpers import get_language_from_code
+from helpers import get_all_video_urls
 
 from download import get_caption_languages
+from download import download_video_title_and_description
+
+from track_contributors import get_all_video_contributors
 
 
 SECRETS_FILE_ENV_VARIABLE_NAME = 'YOUTUBE_UPLOADING_KEY'
 CRENTIALS_FILE_ENV_VARIABLE_NAME = 'YOUTUBE_CREDENTIALS_FILE'
+CREDIT_HEADER = "Thanks to these viewers for their contributions to translations"
 
 @lru_cache()
 def get_youtube_api():
@@ -118,7 +123,7 @@ def upload_caption(youtube_api, video_id, caption_file, name="", replace=False):
             raise Exception(e)
         else:
             print(f"Failed to upload {langauge} captions to {web_id}")
-            print("\n{str(e)}\n")
+            print(f"\n{str(e)}\n")
 
 
 def upload_video_localizations(youtube_api, caption_directory, video_id, languages=None):
@@ -224,3 +229,106 @@ def upload_new_captions_multiple_videos(video_urls):
             directory=url_to_directory(video_url),
             video_id=extract_video_id(video_url),
         )
+
+
+def update_description(youtube_api, video_id, new_description):
+    # First, fetch the current video details to get the required parts for update
+    video_response = youtube_api.videos().list(
+        part="snippet",
+        id=video_id
+    ).execute()
+    
+    if not video_response['items']:
+        return "Video not found."
+    
+    snippet = video_response['items'][0]['snippet']
+    
+    # Update the description in the snippet
+    snippet['description'] = new_description
+    
+    # Prepare the update request with the modified snippet
+    update_request = youtube_api.videos().update(
+        part="snippet",
+        body={
+            "id": video_id,
+            "snippet": snippet
+        }
+    )
+    
+    # Execute the update request
+    update_response = update_request.execute()
+
+
+def add_translation_credit_to_description(desc, contributors):
+    lines = desc.split("\n")
+    if any(l.startswith(CREDIT_HEADER) for l in lines):
+        credits_index = next(i for (i, l) in enumerate(lines) if l.startswith(CREDIT_HEADER))
+        while True:
+            if credits_index >= len(lines):
+                break
+            if len(lines[credits_index].strip()) == 0:
+                break
+            if lines[credits_index].startswith("-"):
+                break
+            lines.pop(credits_index)
+    elif any(l.startswith("--") for l in lines):
+        credits_index = next(i for (i, l) in enumerate(lines) if l.startswith("--"))
+    else:
+        if not len(lines[-1].strip()) == 0:
+            lines.append("")
+        credits_index = len(lines)
+
+    credit_lines = [CREDIT_HEADER]
+    for lang in sorted(contributors.keys()):
+        names = contributors[lang]
+        name_list = ", ".join(names)
+        credit_lines.append(f"{lang.capitalize()}: {name_list}")
+    credit_lines.append("")
+
+    return "\n".join((
+        *lines[:credits_index],
+        *credit_lines,
+        *lines[credits_index:],
+    ))
+
+
+def add_translation_credit(youtube_api, video_id):
+    contributors = get_all_video_contributors(get_video_id_to_web_id_map()[video_id])
+    if not contributors:
+        return
+    title, desc = download_video_title_and_description(youtube_api, video_id)
+    new_desc = add_translation_credit_to_description(desc, contributors)
+    update_description(youtube_api, video_id, new_desc)
+
+
+def add_all_contributors():
+    youtube_api = get_youtube_api()
+    vid_to_wid = get_video_id_to_web_id_map()
+    urls = get_all_video_urls()
+    for url in urls:
+        vid = extract_video_id(url)
+        wid = vid_to_wid[vid]
+        with temporary_message(f"Adding credits to {wid}"):
+            try:
+                add_translation_credit(youtube_api, vid)
+            except Exception as e:
+                print(f"Failed on {wid}")
+
+    from helpers import get_web_id_to_video_id_map
+
+    wid_to_vid = get_web_id_to_video_id_map()
+    wids = [
+        "area-and-slope",
+        "chain-rule-and-product-rule",
+        "higher-order-derivatives",
+        "implicit-differentiation",
+        "integration",
+        "limits",
+        "taylor-series",
+        "derivatives-and-transforms",
+        "feynmans-lost-lecture",
+        "barber-pole-1",
+    ]
+    for wid in wids:
+        with temporary_message(f"Adding credits to {wid}"):
+            add_translation_credit(youtube_api, wid_to_vid[wid])
