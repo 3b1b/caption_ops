@@ -16,7 +16,7 @@ from srt_ops import sub_rip_time_to_seconds
 def find_closest_aligning_substring_indices(
     full_text,
     sentences,
-    max_shift=100,
+    max_shift=300,
     radius=20,
     sentence_end_bias=2,
 ):
