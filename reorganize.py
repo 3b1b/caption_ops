@@ -448,3 +448,108 @@ def fill_empty_translations(urls):
         blank_paths.append(path)
         n_chars += sum(map(len, en_sents))
 
+
+def compare_with_old_transcripts():
+    from sentence_timings import find_closest_aligning_substrings
+    from sentence_timings import get_sentence_timings
+    from scripts.sync_transcription_update import main as sync_transcript
+
+    old_trans_dir = "/Users/grant/Downloads/old_transcripts"
+    transcripts = get_all_files_with_ending("transcript.txt")
+
+    # Old
+    for trans in map(Path, transcripts):
+        web_id = trans.parent.parent.stem
+        old_trans = Path(old_trans_dir, web_id).with_suffix(".txt")
+        if not os.path.exists(old_trans):
+            print(f"Cannot find {old_trans}")
+            continue
+        sentences = trans.read_text().split("\n")
+        old_text = old_trans.read_text().replace("\n", " ")
+        old_sentences = find_closest_aligning_substrings(old_text, sentences, max_shift=300)
+        old_sentences = list(map(str.strip, old_sentences))
+
+        final_sentences = []
+        threshold = 8
+        for sent1, sent2 in zip(sentences, old_sentences):
+            bigger = threshold < len(sent2) - len(sent1) < 200
+            final_sentences.append(sent2 if bigger else sent1)
+
+        trans.write_text("\n".join(final_sentences))
+
+
+def upload_missing_captions():
+    from helpers import get_video_id_to_web_id_map
+    from helpers import extract_video_id
+    from helpers import url_to_directory
+    from upload import upload_caption
+    from youtube_transcript_api import YouTubeTranscriptApi
+
+
+    urls = get_all_video_urls()
+    vid_to_wid = get_video_id_to_web_id_map()
+    youtube_api = get_youtube_api()
+
+    for url in urls:
+        video_id = extract_video_id(url)
+        wid = vid_to_wid[video_id]
+        with temporary_message(f"Searching {wid}"):
+            ts = YouTubeTranscriptApi.list_transcripts(video_id)
+            if not "en" in [t.language_code for t in ts]:
+                srt = Path(url_to_directory(url), "english", "captions.srt")
+                upload_caption(youtube_api, video_id, srt)
+
+
+def fix_hamming():
+    from helpers import webids_to_directories
+    from sentence_timings import get_sentences
+
+    # old_folder = "/Users/grant/Downloads/old_transcripts"
+
+    web_id = "hamming-codes-2"
+    folder = Path(webids_to_directories([web_id])[0])
+
+    words, starts, end = zip(*(json_load(Path(folder, "english", "word_timings.json"))))
+    sents1 = get_sentences("".join(words))
+    sents2 = Path(folder, "english", "transcript.txt").read_text().split("\n")
+    # sents2 = get_sentences(Path(old_folder, f"{web_id}.txt").read_text())
+
+    for trans_file in folder.rglob("sentence_translations.json"):
+        trans = json_load(trans_file)
+        if len(trans) == len(sents1):
+            sents = sents1
+        elif len(trans) == len(sents2):
+            sents = sents2
+        else:
+            sents = []
+            print(trans_file)
+        for obj, sent in zip(trans, sents):
+            obj['input'] = sent
+        json_dump(trans, trans_file)
+
+
+def search_for_mismatches():
+    from upload import upload_caption
+    from upload import get_youtube_api
+    from helpers import get_all_video_urls
+    from helpers import extract_video_id
+    from helpers import url_to_directory
+    from helpers import YouTube
+
+    youtube_api = get_youtube_api()
+    urls = get_all_video_urls()
+
+    for url in urls[51:]:
+        video_id = extract_video_id(url)
+        webid = Path(url_to_directory(url)).stem
+        if YouTube(url).author != "3Blue1Brown":
+            continue
+        print(f"Searching {webid}\n")
+        mismatches = find_mismatched_captions(url)
+        if mismatches:
+            print(webid, [m.split("/")[-2] for m in mismatches])
+            for path in mismatches:
+                try:
+                    upload_caption(youtube_api, video_id, path, replace=True)
+                except Exception as e:
+                    pass
