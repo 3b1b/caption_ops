@@ -120,8 +120,9 @@ def find_mismatched_captions(video_url, languages=None):
     web_id = cap_dir.stem
     video_id = extract_video_id(video_url)
 
-    with temporary_message(f"Pulling {web_id} transcripts"):
-        transcripts = list(YouTubeTranscriptApi.list_transcripts(video_id))
+    # with temporary_message(f"Pulling {web_id} transcripts"):
+    #     transcripts = list(YouTubeTranscriptApi.list_transcripts(video_id))
+    transcripts = []  # Something is broken with retrieving transcripts
 
     local_languages = [
         lang
@@ -153,10 +154,11 @@ def find_mismatched_captions(video_url, languages=None):
             mismatches.append(default_srt)
             continue
         yt_transcript, srt_file = online_transcript, srts[0]
-        any_matches = any((
-            does_yt_transcript_match_srt(online_transcript, srt)
-            for srt in srts
-        ))
+        # any_matches = any((
+        #     does_yt_transcript_match_srt(online_transcript, srt)
+        #     for srt in srts
+        # ))
+        any_matches = False  # Obviously change this, there's some issue with does_yt_transcript_match_srt
         if not any_matches:
             mismatches.append(default_srt)
 

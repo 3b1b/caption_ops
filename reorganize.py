@@ -35,6 +35,7 @@ from upload import get_youtube_api
 from download import find_mismatched_captions
 
 
+
 def is_fully_populated_translation(translation_file):
     """
     Returns false if any non-empty english sentence
@@ -328,7 +329,6 @@ def incorporate_srt_data_into_sentence_translations(translation_srt):
     json_dump(translation, trans_file)
 
 
-
 def fix_key_order():
     for trans_file in get_all_files_with_ending("sentence_translations.json"):
         trans = json_load(trans_file)
@@ -407,46 +407,161 @@ def all_srt_to_txt():
         srt_to_txt(file)
 
 
-def fill_empty_translations(urls):
+def fill_empty_translations(web_ids):
     from translate import TARGET_LANGUAGES
 
-    languages = list(map(str.lower, TARGET_LANGUAGES))
-    paths = Path(CAPTIONS_DIRECTORY).rglob("sentence_translations.json")
-    blank_paths = []
+    wid_to_dir = get_web_id_to_caption_directory_map()
     n_chars = 0
-    for path in paths:
-        if path.parent.stem not in languages:
-            continue
-        trans = json_load(path)
-        if any(obj['translatedText'] for obj in trans):
-            continue
+    trans_map = {lang: dict() for lang in TARGET_LANGUAGES}
 
-        en_sents = [obj['input'] for obj in trans]
-        language = path.parent.stem
+    for web_id in web_ids:
+        folder = wid_to_dir[web_id]
+        transcript = json_load(Path(folder, "english", "sentence_timings.json"))
+        en_sents = [t[0] for t in transcript]
+        for language in TARGET_LANGUAGES:
+            if get_all_files_with_ending("community.srt", root=Path(folder, language)):
+                continue
+            translation_file = Path(folder, language, "sentence_translations.json")
+            if not os.path.exists(translation_file):
+                continue
+            try:
+                translation = json_load(translation_file)
+            except Exception as e:
+                print(e)
 
-        # Update translation
-        with temporary_message(f"Translating {path}"):
-            new_translation = translate_sentences(en_sents, language)
-        for obj, new_obj in zip(trans, new_translation):
-            obj['translatedText'] = new_obj['translatedText']
-            if 'model' in new_obj:
-                obj['model'] = new_obj['model']
+            if len(translation) == len(en_sents):
+                continue
 
-        # Ensure correct order
-        key_order = ["input", "translatedText", "model", "from_community_srt", "n_reviews", "start", "end"]
-        trans = [
-            {
-                key: obj[key]
-                for key in key_order
-                if key in obj
-            }
-            for obj in trans
-        ]
+            if any([obj['n_reviews'] > 0 for obj in translation]):
+                continue
 
-        json_dump(trans, path)
+            # Read in known translations
+            for obj in translation:
+                trans_map[language][obj['input'].strip()] = obj['translatedText']
+            # Gather unknown translations
+            unknown_sents = [
+                sent.strip()
+                for sent in en_sents
+                if sent not in trans_map[language]
+            ]
+            n_chars += sum(map(len, unknown_sents))
 
-        blank_paths.append(path)
-        n_chars += sum(map(len, en_sents))
+            with temporary_message(f"Translating {web_id}, {language}"):
+                unknown_sent_translations = translate_sentences(unknown_sents, language)
+            for obj in unknown_sent_translations:
+                trans_map[language][obj['input'].strip()] = obj['translatedText']
+
+            updated_translation = [
+                dict(
+                    input=sent.strip(),
+                    translatedText=trans_map[language][sent.strip()],
+                    model="DeepL",
+                    n_reviews=0,
+                    start=start,
+                    end=end,
+                )
+                for sent, start, end in transcript
+            ]
+            json_dump(updated_translation, translation_file)
+
+
+def test():
+    web_ids = [
+        "neural-networks",
+        "gradient-descent",
+        "backpropagation",
+        "backpropagation-calculus",
+        "gpt",
+        "attention",
+        "essence-of-calculus",
+        "divergence-and-curl",
+        "taylor-series",
+        "eulers-number",
+        "derivatives-and-transforms",
+        "derivatives",
+        "derivative-formulas-geometrically",
+        "integration",
+        "limits",
+        "implicit-differentiation",
+        "chain-rule-and-product-rule",
+        "area-and-slope",
+        "brachistochrone",
+        "higher-order-derivatives",
+        "vectors",
+        "span",
+        "linear-transformations",
+        "eigenvalues",
+        "determinant",
+        "matrix-multiplication",
+        "inverse-matrices",
+        "eola-preview",
+        "dot-products",
+        "3d-transformations",
+        "change-of-basis",
+        "cross-products",
+        "nonsquare-matrices",
+        "abstract-vector-spaces",
+        "cross-products-extended",
+        "cramers-rule",
+        "quick-eigen",
+        "fourier-series",
+        "differential-equations",
+        "eulers-formula-dynamically",
+        "matrix-exponents",
+        "pdes",
+        "heat-equation",
+        "hardest-problem",
+        "clacks",
+        "clacks-solution",
+        "clacks-via-light",
+        "fourier-transforms",
+        "clt",
+        "convolutions2",
+        "convolutions",
+        "gaussian-integral",
+        "gaussian-convolution",
+        "hamming-codes",
+        "hamming-codes-2",
+        "moser-reboot",
+        "borwein",
+        "subsets-puzzle",
+        "visual-proofs",
+        "sphere-area",
+        "basel-problem",
+        "prime-spirals",
+        "windmills",
+        "barber-pole-1",
+        "barber-pole-2",
+        "prism",
+        "refractive-index-questions",
+        "zeta",
+        "quaternions",
+        "newtons-fractal",
+        "holomorphic-dynamics",
+        "shadows",
+        "wordle",
+        "groups-and-monsters",
+        "bayes-theorem",
+        "dandelin-spheres",
+        "pythagorean-triples",
+        "fractal-dimension",
+        "exponential-and-epidemics",
+        "feynmans-lost-lecture",
+        "inscribed-rectangle-problem",
+        "borsuk-ulam",
+        "bitcoin",
+        "256-bit-security",
+        "higher-dimensions",
+        "epidemic-simulations",
+        "pdfs",
+        "leibniz-formula",
+        "eulers-formula-via-group-theory",
+        "hilbert-curve",
+        "uncertainty-principle",
+        "light-quantum-mechanics",
+        "chessboard-puzzle",
+        "pi-was-628",
+    ]
 
 
 def compare_with_old_transcripts():
@@ -553,3 +668,16 @@ def search_for_mismatches():
                     upload_caption(youtube_api, video_id, path, replace=True)
                 except Exception as e:
                     pass
+
+
+def music_free_slots():
+    from upload import *
+    from helpers import *
+
+    youtube_api = get_youtube_api()
+    video_id = "Cz4Q4QOuoo8"  # Refractive index
+    vid_to_wid = get_video_id_to_web_id_map()
+    vid_to_dir = get_video_id_to_caption_directory_map()
+    caption_file = Path(vid_to_dir[video_id], "english", "captions.srt")
+
+    upload_caption(youtube_api, video_id, caption_file, name="(No music)", replace=False, language_code='en')

@@ -31,6 +31,7 @@ SECRETS_FILE_ENV_VARIABLE_NAME = 'YOUTUBE_UPLOADING_KEY'
 CRENTIALS_FILE_ENV_VARIABLE_NAME = 'YOUTUBE_CREDENTIALS_FILE'
 CREDIT_HEADER = "Thanks to these viewers for their contributions to translations"
 
+
 @lru_cache()
 def get_youtube_api():
     client_secrets_file = os.getenv(SECRETS_FILE_ENV_VARIABLE_NAME)
@@ -94,8 +95,9 @@ def delete_captions(youtube_api, video_id, language_code):
             print(f"Failed to delete {language} captions on {web_id}\n\n{e}\n\n")
 
 
-def upload_caption(youtube_api, video_id, caption_file, name="", replace=False):
-    language_code = get_language_code(Path(caption_file).parent.stem)
+def upload_caption(youtube_api, video_id, caption_file, name="", replace=False, language_code=None):
+    if language_code is None:
+        language_code = get_language_code(Path(caption_file).parent.stem)
     if replace:
         delete_captions(youtube_api, video_id, language_code)
         time.sleep(0.5)  # Needs better use of async

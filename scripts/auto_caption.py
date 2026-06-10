@@ -24,6 +24,7 @@ from translate import translate_video_details_multiple_languages
 from translate import TARGET_LANGUAGES
 
 from srt_ops import write_srt_from_sentences_and_time_ranges
+from srt_ops import write_srt
 
 from sentence_timings import get_sentences_with_timings
 from sentence_timings import write_sentence_timing_file
@@ -42,11 +43,13 @@ def write_whisper_transcription_files(
     captions_file_name="captions.srt",
     sentence_timings_file_name="sentence_timings.json",
     plain_text_file_name="transcript.txt",
+    sentence_captions_name="full_sentences.srt",
 ):
     word_timings_path = Path(directory, word_timings_file_name)
     captions_path = Path(directory, captions_file_name)
     sentence_timings_path = Path(directory, sentence_timings_file_name)
     plain_text_file_path = Path(directory, plain_text_file_name)
+    sentence_captions_path = Path(directory, sentence_captions_name)
 
     if not os.path.exists(word_timings_path):
         model = load_whisper_model()
@@ -61,6 +64,9 @@ def write_whisper_transcription_files(
         sentences, time_ranges = get_sentences_with_timings(word_timings)
         write_sentence_timing_file(sentences, time_ranges, sentence_timings_path)
 
+    segments = json_load(sentence_timings_path)
+    write_srt(segments, sentence_captions_path)
+
     # Write an srt based on those word timeings
     if not os.path.exists(captions_path):
         write_srt_from_sentences_and_time_ranges(sentences, time_ranges, captions_path)
@@ -72,8 +78,8 @@ def write_whisper_transcription_files(
     return word_timings_path, captions_path, sentence_timings_path
 
 
-def auto_caption(video_url, upload=True, languages: Optional[list]=None):
-    youtube_api = get_youtube_api()
+def auto_caption(video_url, upload=True, languages: Optional[list] = None):
+    # youtube_api = get_youtube_api()
 
     languages = list(map(str.lower, languages or []))
 
@@ -82,9 +88,15 @@ def auto_caption(video_url, upload=True, languages: Optional[list]=None):
     audio_dir = url_to_directory(video_url, root=AUDIO_DIRECTORY)
 
     # Download
-    audio_file = Path(audio_dir, "original_audio.mp4")
-    if not os.path.exists(audio_file):
-        download_youtube_audio(video_url, audio_file)
+    audio_file = None
+    for name in ["only_narration", "original_audio"]:
+        for suffix in [".mp3", ".wav"]:
+            path = Path(audio_dir, name).with_suffix(suffix)
+            if os.path.exists(path):
+                audio_file = path
+                break
+    if audio_file is None:
+        raise Exception("No audio file")
 
     # Transcribe
     _, _, sentence_timings_path = write_whisper_transcription_files(
@@ -106,8 +118,8 @@ def auto_caption(video_url, upload=True, languages: Optional[list]=None):
                 upload_caption(youtube_api, video_id, path, replace=True)
             except Exception as e:
                 print(f"Failed to upload {path}\n\n{e}\n\n")
-        if languages:
-            upload_video_localizations(youtube_api, caption_dir, video_id, languages)
+        # if languages:
+        #     upload_video_localizations(youtube_api, caption_dir, video_id, languages)
 
 
 if __name__ == "__main__":

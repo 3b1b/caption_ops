@@ -30,7 +30,7 @@ def gpt4_translate(sentences, language, formality="informal", n_context_sentence
             model="gpt-4o",
             messages=messages,
             # This is capping it at vaguely 2x the tokens of the input
-            max_tokens=len(sentence),
+            max_tokens=2 * len(sentence),
             # Low temperature to minimize variability in translation
             temperature=0.3
         )
