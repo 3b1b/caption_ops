@@ -119,12 +119,17 @@ def write_srt_from_sentences_and_time_ranges(
                 # Otherwise, e.g. in character-based languages, just take what you can get
                 cuts.append(best_cut)
         for lh, rh in zip(cuts, cuts[1:]):
-            texts.append(sentence[lh:rh])
+            text = sentence[lh:rh].strip()
+            if not text:
+                continue
+            texts.append(text)
             starts.append(interpolate(start_time, end_time, lh / n_chars))
             ends.append(interpolate(start_time, end_time, rh / n_chars),)
-    # Correct the case of time overlaps between sentences causing things to get out of order
-    starts.sort()
-    ends.sort()
+    # Correct the case of time overlaps between sentences causing things to get
+    # out of order, nudging each segment to begin no sooner than the last one ended
+    for index in range(1, len(starts)):
+        starts[index] = max(starts[index], ends[index - 1])
+        ends[index] = max(ends[index], starts[index])
 
     # Write the srt
     segments = list(zip(texts, starts, ends))

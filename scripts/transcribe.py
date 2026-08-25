@@ -11,7 +11,6 @@ from transcribe_video import words_with_timings_to_srt
 from transcribe_video import save_word_timings
 from sentence_timings import get_sentences_with_timings
 from srt_ops import write_srt
-from srt_ops import write_srt_from_sentences_and_time_ranges
 
 
 if __name__ == "__main__":
@@ -21,7 +20,6 @@ if __name__ == "__main__":
 
     audio_file = Path(args.audio_file)
     srt_file = Path(audio_file.parent, "transcription_sentences.srt")
-    caption_file = Path(audio_file.parent, "captions.srt")
     word_timings_path = Path(audio_file.parent, "word_timings.json")
 
     # Run whisper
@@ -31,5 +29,4 @@ if __name__ == "__main__":
     sentences, time_ranges = get_sentences_with_timings(word_timings)
     segments = [[sent, start, end] for sent, (start, end) in zip(sentences, time_ranges)]
     write_srt(segments, srt_file)
-    write_srt_from_sentences_and_time_ranges(sentences, time_ranges, caption_file, max_chars_per_segment=50)
     print(f"Wrote transcription to {srt_file}")
