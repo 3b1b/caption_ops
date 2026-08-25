@@ -8,20 +8,20 @@ from google.oauth2 import service_account
 import deepl
 from google_auth_oauthlib.flow import google
 
-from helpers import temporary_message
-from helpers import webids_to_directories
-from helpers import ensure_exists
-from helpers import extract_video_id
-from helpers import get_language_code
-from helpers import json_load
-from helpers import json_dump
-from helpers import url_to_directory
+from caption_ops.helpers import temporary_message
+from caption_ops.helpers import webids_to_directories
+from caption_ops.helpers import ensure_exists
+from caption_ops.helpers import extract_video_id
+from caption_ops.helpers import get_language_code
+from caption_ops.helpers import json_load
+from caption_ops.helpers import json_dump
+from caption_ops.helpers import url_to_directory
 
-from download import download_video_title_and_description
+from caption_ops.download import download_video_title_and_description
 
-from srt_ops import write_srt_from_sentences_and_time_ranges
+from caption_ops.srt_ops import write_srt_from_sentences_and_time_ranges
 
-from sentence_timings import extract_sentences
+from caption_ops.sentence_timings import extract_sentences
 
 SERVICE_ACCOUNT_ENV_VARIABLE_NAME = 'GOOGLE_TRANSLATION_SERVICE_ACCOUNT'
 DEEPL_KEY_FILE_ENV_VARIABLE_NAME = 'DEEPL_KEY_FILE'

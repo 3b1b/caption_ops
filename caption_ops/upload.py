@@ -12,19 +12,19 @@ import time
 
 from pathlib import Path
 
-from helpers import extract_video_id
-from helpers import url_to_directory
-from helpers import temporary_message
-from helpers import get_language_code
-from helpers import json_load
-from helpers import get_video_id_to_web_id_map
-from helpers import get_language_from_code
-from helpers import get_all_video_urls
+from caption_ops.helpers import extract_video_id
+from caption_ops.helpers import url_to_directory
+from caption_ops.helpers import temporary_message
+from caption_ops.helpers import get_language_code
+from caption_ops.helpers import json_load
+from caption_ops.helpers import get_video_id_to_web_id_map
+from caption_ops.helpers import get_language_from_code
+from caption_ops.helpers import get_all_video_urls
 
-from download import get_caption_languages
-from download import download_video_title_and_description
+from caption_ops.download import get_caption_languages
+from caption_ops.download import download_video_title_and_description
 
-from track_contributors import get_all_video_contributors
+from caption_ops.track_contributors import get_all_video_contributors
 
 
 SECRETS_FILE_ENV_VARIABLE_NAME = 'YOUTUBE_UPLOADING_KEY'
@@ -316,7 +316,7 @@ def add_all_contributors():
             except Exception as e:
                 print(f"Failed on {wid}")
 
-    from helpers import get_web_id_to_video_id_map
+    from caption_ops.helpers import get_web_id_to_video_id_map
 
     wid_to_vid = get_web_id_to_video_id_map()
     wids = [

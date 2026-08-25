@@ -5,8 +5,8 @@ import csv
 from functools import lru_cache
 
 from pathlib import Path
-from helpers import get_web_id_to_caption_directory_map
-from helpers import CAPTIONS_DIRECTORY
+from caption_ops.helpers import get_web_id_to_caption_directory_map
+from caption_ops.helpers import CAPTIONS_DIRECTORY
 
 LOCAL_REPO = CAPTIONS_DIRECTORY  # Should change
 

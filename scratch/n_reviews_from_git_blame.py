@@ -6,9 +6,9 @@ from subprocess import check_output
 from pathlib import Path
 from collections import OrderedDict
 
-from helpers import json_load
-from helpers import json_dump
-from helpers import get_all_files_with_ending
+from caption_ops.helpers import json_load
+from caption_ops.helpers import json_dump
+from caption_ops.helpers import get_all_files_with_ending
 
 # Constants
 GITHUB_API_URL = "https://api.github.com"

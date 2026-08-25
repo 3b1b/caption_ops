@@ -3,16 +3,16 @@ import os
 
 from pathlib import Path
 
-from scripts.sync_all_captions import convert_to_url
-from scripts.sync_all_captions import sync_srts_to_translations
+from caption_ops.cli.sync_all_captions import convert_to_url
+from caption_ops.cli.sync_all_captions import sync_srts_to_translations
 
-from helpers import get_web_id_to_video_id_map
-from helpers import url_to_directory
-from helpers import extract_video_id
+from caption_ops.helpers import get_web_id_to_video_id_map
+from caption_ops.helpers import url_to_directory
+from caption_ops.helpers import extract_video_id
 
-from upload import get_youtube_api
-from upload import upload_caption
-from upload import upload_video_localizations
+from caption_ops.upload import get_youtube_api
+from caption_ops.upload import upload_caption
+from caption_ops.upload import upload_video_localizations
 
 
 if __name__ == "__main__":

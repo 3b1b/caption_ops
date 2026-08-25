@@ -1,9 +1,9 @@
-from helpers import get_video_id_to_web_id_map
-from helpers import get_all_video_urls
-from helpers import url_to_directory
-from helpers import extract_video_id
-from helpers import get_video_id_to_caption_directory_map
-from helpers import CAPTIONS_DIRECTORY
+from caption_ops.helpers import get_video_id_to_web_id_map
+from caption_ops.helpers import get_all_video_urls
+from caption_ops.helpers import url_to_directory
+from caption_ops.helpers import extract_video_id
+from caption_ops.helpers import get_video_id_to_caption_directory_map
+from caption_ops.helpers import CAPTIONS_DIRECTORY
 
 import pyperclip
 

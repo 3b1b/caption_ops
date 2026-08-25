@@ -15,8 +15,11 @@ from pytube.extract import video_id as extract_video_id
 
 CAPTIONS_DIRECTORY = "/Users/grant/cs/captions"
 AUDIO_DIRECTORY = "/Users/grant/3Blue1Brown Dropbox/3Blue1Brown/audio_tracks"
+API_KEY_DIRECTORY = "/Users/grant/cs/api_keys"
 SENTENCE_ENDING_PATTERN = r'(?<=[.!?])\s+|\.$|(?<=[।۔՝։።။។፡。！？])'
 PUNCTUATION_PATTERN = r'(?<=[.!?,:;])\s+|\.$|(?<=[，।۔՝։።။។፡。！？])'
+# Colons are left out here, since a caption breaking right after one reads badly
+CAPTION_BREAK_PATTERN = r'(?<=[.!?,;])\s+|\.$|(?<=[，।۔՝։።။។፡。！？])'
 
 
 @contextmanager
@@ -29,6 +32,27 @@ def temporary_message(message):
         # Return to the start of the line and overwrite the message with spaces
         sys.stdout.write('\r' + ' ' * len(message) + '\r')
         sys.stdout.flush()
+
+
+def get_api_key(file_name, env_vars=()):
+    """
+    Look for an api key in the api_keys directory, falling back
+    on the given environment variables.
+    """
+    key_file = Path(API_KEY_DIRECTORY, file_name)
+    if key_file.exists():
+        return key_file.read_text().strip()
+    for env_var in env_vars:
+        key = os.environ.get(env_var)
+        if key:
+            return key.strip()
+    raise FileNotFoundError(
+        f"No api key found at {key_file} or in {' or '.join(env_vars)}"
+    )
+
+
+def get_openai_api_key():
+    return get_api_key("openai_key.txt", ("OPENAI_KEY", "OPENAI_API_KEY"))
 
 
 def interpolate(start, end, alpha):
@@ -58,13 +82,13 @@ def nearest_string(src, trg_list):
 
 
 def get_sentences(full_text, end_marks=SENTENCE_ENDING_PATTERN):
-    return [
-        (sentence + mark).strip()
-        for sentence, mark in zip(
-            re.split(end_marks, full_text),
-            re.findall(end_marks, full_text),
-        )
-    ]
+    pieces = re.split(end_marks, full_text)
+    marks = re.findall(end_marks, full_text)
+    # Whatever follows the last end mark is still a sentence, even though it
+    # has no mark of its own, as happens when the text ends on "!" or "?"
+    marks.extend([""] * (len(pieces) - len(marks)))
+    sentences = [(piece + mark).strip() for piece, mark in zip(pieces, marks)]
+    return [sentence for sentence in sentences if sentence]
 
 
 def get_language_code(language):

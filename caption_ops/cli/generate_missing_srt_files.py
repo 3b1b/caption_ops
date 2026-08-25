@@ -11,8 +11,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from sentence_timings import get_sentences_with_timings
-from srt_ops import write_srt
+from caption_ops.sentence_timings import get_sentences_with_timings
+from caption_ops.srt_ops import write_srt
 
 
 def json_load(path: Path) -> dict:

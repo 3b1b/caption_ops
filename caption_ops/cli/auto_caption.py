@@ -6,68 +6,59 @@ import os
 from pytube import YouTube
 from pathlib import Path
 
-from helpers import url_to_directory
-from helpers import json_load
-from helpers import ensure_exists
-from helpers import get_all_video_urls
-from helpers import AUDIO_DIRECTORY
+from caption_ops.helpers import url_to_directory
+from caption_ops.helpers import json_load
+from caption_ops.helpers import ensure_exists
+from caption_ops.helpers import get_all_video_urls
+from caption_ops.helpers import AUDIO_DIRECTORY
 
-from download import download_youtube_audio
+from caption_ops.download import download_youtube_audio
 
-from transcribe_video import load_whisper_model
-from transcribe_video import transcribe_file
-from transcribe_video import words_with_timings_to_srt
-from transcribe_video import save_word_timings
+from caption_ops.transcribe_video import segments_to_sentences
+from caption_ops.transcribe_video import transcribe_segments
 
-from translate import translate_to_multiple_languages
-from translate import translate_video_details_multiple_languages
-from translate import TARGET_LANGUAGES
+from caption_ops.translate import translate_to_multiple_languages
+from caption_ops.translate import translate_video_details_multiple_languages
+from caption_ops.translate import TARGET_LANGUAGES
 
-from srt_ops import write_srt_from_sentences_and_time_ranges
-from srt_ops import write_srt
+from caption_ops.srt_ops import write_srt_from_sentences_and_time_ranges
+from caption_ops.srt_ops import write_srt
 
-from sentence_timings import get_sentences_with_timings
-from sentence_timings import write_sentence_timing_file
+from caption_ops.sentence_timings import write_sentence_timing_file
 
-from download import find_mismatched_captions
+from caption_ops.download import find_mismatched_captions
 
-from upload import get_youtube_api
-from upload import upload_caption
-from upload import upload_video_localizations
+from caption_ops.upload import get_youtube_api
+from caption_ops.upload import upload_caption
+from caption_ops.upload import upload_video_localizations
 
 
 def write_whisper_transcription_files(
     audio_file,
     directory,
-    word_timings_file_name="word_timings.json",
     captions_file_name="captions.srt",
     sentence_timings_file_name="sentence_timings.json",
     plain_text_file_name="transcript.txt",
     sentence_captions_name="full_sentences.srt",
 ):
-    word_timings_path = Path(directory, word_timings_file_name)
     captions_path = Path(directory, captions_file_name)
     sentence_timings_path = Path(directory, sentence_timings_file_name)
     plain_text_file_path = Path(directory, plain_text_file_name)
     sentence_captions_path = Path(directory, sentence_captions_name)
 
-    if not os.path.exists(word_timings_path):
-        model = load_whisper_model()
-        # Run whisper
-        transcription = transcribe_file(model, str(audio_file))
-        # Save the times for each individual word
-        save_word_timings(transcription, word_timings_path)
-    word_timings = json_load(word_timings_path)
-
-    # Write the sentence timings
+    # Transcribe, or read back an earlier transcription
     if not os.path.exists(sentence_timings_path):
-        sentences, time_ranges = get_sentences_with_timings(word_timings)
+        sentences, time_ranges = segments_to_sentences(transcribe_segments(audio_file))
         write_sentence_timing_file(sentences, time_ranges, sentence_timings_path)
 
     segments = json_load(sentence_timings_path)
+    sentences = [segment[0] for segment in segments]
+    time_ranges = [(segment[1], segment[2]) for segment in segments]
+
+    # One caption per sentence
     write_srt(segments, sentence_captions_path)
 
-    # Write an srt based on those word timeings
+    # And one broken into more readable chunks
     if not os.path.exists(captions_path):
         write_srt_from_sentences_and_time_ranges(sentences, time_ranges, captions_path)
 
@@ -75,7 +66,7 @@ def write_whisper_transcription_files(
     if not os.path.exists(plain_text_file_path):
         Path(plain_text_file_path).write_text("\n".join(sentences))
 
-    return word_timings_path, captions_path, sentence_timings_path
+    return captions_path, sentence_timings_path
 
 
 def auto_caption(video_url, upload=True, languages: Optional[list] = None):
@@ -99,7 +90,7 @@ def auto_caption(video_url, upload=True, languages: Optional[list] = None):
         raise Exception("No audio file")
 
     # Transcribe
-    _, _, sentence_timings_path = write_whisper_transcription_files(
+    _, sentence_timings_path = write_whisper_transcription_files(
         audio_file,
         directory=ensure_exists(Path(caption_dir, "english"))
     )

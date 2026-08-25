@@ -3,12 +3,12 @@ import openai
 from pathlib import Path
 from tqdm.auto import tqdm as ProgressDisplay
 
-from helpers import json_load
-from helpers import json_dump
-from helpers import ensure_exists
-from helpers import temporary_message
+from caption_ops.helpers import json_load
+from caption_ops.helpers import json_dump
+from caption_ops.helpers import ensure_exists
+from caption_ops.helpers import temporary_message
 
-from translate import translate_sentences
+from caption_ops.translate import translate_sentences
 
 
 def gpt4_translate(sentences, language, formality="informal", n_context_sentences=2):

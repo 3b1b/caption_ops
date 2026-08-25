@@ -8,31 +8,31 @@ import operator as op
 from torch.nn.modules import instancenorm
 from tqdm.auto import tqdm as ProgressDisplay
 
-from helpers import get_all_video_urls
-from helpers import get_web_id_to_video_id_map
-from srt_ops import srt_to_txt
-from srt_ops import interpolate
-from helpers import temporary_message
-from helpers import json_load
-from helpers import json_dump
-from helpers import get_language_code
-from helpers import get_all_files_with_ending
-from helpers import CAPTIONS_DIRECTORY
-from helpers import SENTENCE_ENDING_PATTERN
-from helpers import PUNCTUATION_PATTERN
+from caption_ops.helpers import get_all_video_urls
+from caption_ops.helpers import get_web_id_to_video_id_map
+from caption_ops.srt_ops import srt_to_txt
+from caption_ops.srt_ops import interpolate
+from caption_ops.helpers import temporary_message
+from caption_ops.helpers import json_load
+from caption_ops.helpers import json_dump
+from caption_ops.helpers import get_language_code
+from caption_ops.helpers import get_all_files_with_ending
+from caption_ops.helpers import CAPTIONS_DIRECTORY
+from caption_ops.helpers import SENTENCE_ENDING_PATTERN
+from caption_ops.helpers import PUNCTUATION_PATTERN
 
-from translate import get_sentence_translation_file
-from translate import sentence_translations_to_srt
-from translate import translate_sentences
-from srt_ops import write_srt_from_sentences_and_time_ranges
+from caption_ops.translate import get_sentence_translation_file
+from caption_ops.translate import sentence_translations_to_srt
+from caption_ops.translate import translate_sentences
+from caption_ops.srt_ops import write_srt_from_sentences_and_time_ranges
 
-from sentence_timings import get_substring_timings_from_srt
-from sentence_timings import get_sentences_with_timings
-from sentence_timings import get_sentence_timings
-from sentence_timings import write_sentence_timing_file
+from caption_ops.sentence_timings import get_substring_timings_from_srt
+from caption_ops.sentence_timings import get_sentences_with_timings
+from caption_ops.sentence_timings import get_sentence_timings
+from caption_ops.sentence_timings import write_sentence_timing_file
 
-from upload import get_youtube_api
-from download import find_mismatched_captions
+from caption_ops.upload import get_youtube_api
+from caption_ops.download import find_mismatched_captions
 
 
 
@@ -408,7 +408,7 @@ def all_srt_to_txt():
 
 
 def fill_empty_translations(web_ids):
-    from translate import TARGET_LANGUAGES
+    from caption_ops.translate import TARGET_LANGUAGES
 
     wid_to_dir = get_web_id_to_caption_directory_map()
     n_chars = 0
@@ -565,9 +565,9 @@ def test():
 
 
 def compare_with_old_transcripts():
-    from sentence_timings import find_closest_aligning_substrings
-    from sentence_timings import get_sentence_timings
-    from scripts.sync_transcription_update import main as sync_transcript
+    from caption_ops.sentence_timings import find_closest_aligning_substrings
+    from caption_ops.sentence_timings import get_sentence_timings
+    from caption_ops.cli.sync_transcription_update import main as sync_transcript
 
     old_trans_dir = "/Users/grant/Downloads/old_transcripts"
     transcripts = get_all_files_with_ending("transcript.txt")
@@ -594,10 +594,10 @@ def compare_with_old_transcripts():
 
 
 def upload_missing_captions():
-    from helpers import get_video_id_to_web_id_map
-    from helpers import extract_video_id
-    from helpers import url_to_directory
-    from upload import upload_caption
+    from caption_ops.helpers import get_video_id_to_web_id_map
+    from caption_ops.helpers import extract_video_id
+    from caption_ops.helpers import url_to_directory
+    from caption_ops.upload import upload_caption
     from youtube_transcript_api import YouTubeTranscriptApi
 
 
@@ -616,8 +616,8 @@ def upload_missing_captions():
 
 
 def fix_hamming():
-    from helpers import webids_to_directories
-    from sentence_timings import get_sentences
+    from caption_ops.helpers import webids_to_directories
+    from caption_ops.sentence_timings import get_sentences
 
     # old_folder = "/Users/grant/Downloads/old_transcripts"
 
@@ -644,12 +644,12 @@ def fix_hamming():
 
 
 def search_for_mismatches():
-    from upload import upload_caption
-    from upload import get_youtube_api
-    from helpers import get_all_video_urls
-    from helpers import extract_video_id
-    from helpers import url_to_directory
-    from helpers import YouTube
+    from caption_ops.upload import upload_caption
+    from caption_ops.upload import get_youtube_api
+    from caption_ops.helpers import get_all_video_urls
+    from caption_ops.helpers import extract_video_id
+    from caption_ops.helpers import url_to_directory
+    from caption_ops.helpers import YouTube
 
     youtube_api = get_youtube_api()
     urls = get_all_video_urls()
@@ -671,8 +671,8 @@ def search_for_mismatches():
 
 
 def music_free_slots():
-    from upload import *
-    from helpers import *
+    from caption_ops.upload import *
+    from caption_ops.helpers import *
 
     youtube_api = get_youtube_api()
     video_id = "Cz4Q4QOuoo8"  # Refractive index

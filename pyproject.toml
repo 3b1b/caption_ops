@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "caption-ops"
+version = "0.1.0"
+description = "Transcribing, captioning and translating 3Blue1Brown videos"
+requires-python = ">=3.10"
+dependencies = [
+    "faster-whisper",
+    "openai",
+    "deepl",
+    "numpy",
+    "pandas",
+    "pysrt",
+    "regex",
+    "requests",
+    "tqdm",
+    "pycountry",
+    "python-Levenshtein",
+    "pytube",
+    "youtube-transcript-api",
+    "google-api-python-client",
+    "google-auth-oauthlib",
+    "tiktoken",
+    "pyperclip",
+    "PyYAML",
+]
+
+[project.scripts]
+caption-transcribe = "caption_ops.cli.transcribe:main"
+caption-sentences = "caption_ops.cli.sentence_srt:main"
+
+[tool.setuptools]
+packages = ["caption_ops", "caption_ops.cli"]
+
+[tool.setuptools.package-data]
+caption_ops = ["data/*.csv"]

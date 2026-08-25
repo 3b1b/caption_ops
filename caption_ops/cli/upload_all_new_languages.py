@@ -1,12 +1,12 @@
 import time
 import datetime
 
-from helpers import url_to_directory
-from helpers import get_all_video_urls
-from helpers import extract_video_id
+from caption_ops.helpers import url_to_directory
+from caption_ops.helpers import get_all_video_urls
+from caption_ops.helpers import extract_video_id
 
-from upload import get_youtube_api
-from upload import upload_all_new_captions
+from caption_ops.upload import get_youtube_api
+from caption_ops.upload import upload_all_new_captions
 
 def upload_all_new_languages():
     youtube_api = get_youtube_api()

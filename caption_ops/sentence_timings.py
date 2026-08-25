@@ -4,13 +4,13 @@ import pysrt
 import Levenshtein
 from pathlib import Path
 
-from helpers import get_sentences
-from helpers import interpolate
-from helpers import json_dump
-from helpers import json_load
-from helpers import SENTENCE_ENDING_PATTERN
+from caption_ops.helpers import get_sentences
+from caption_ops.helpers import interpolate
+from caption_ops.helpers import json_dump
+from caption_ops.helpers import json_load
+from caption_ops.helpers import SENTENCE_ENDING_PATTERN
 
-from srt_ops import sub_rip_time_to_seconds
+from caption_ops.srt_ops import sub_rip_time_to_seconds
 
 
 def find_closest_aligning_substring_indices(

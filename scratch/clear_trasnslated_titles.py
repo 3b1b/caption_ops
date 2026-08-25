@@ -12,9 +12,9 @@ from googleapiclient.errors import HttpError
 import os
 import pickle
 
-from helpers import get_video_id_to_web_id_map
-from helpers import get_all_video_urls
-from helpers import extract_video_id
+from caption_ops.helpers import get_video_id_to_web_id_map
+from caption_ops.helpers import get_all_video_urls
+from caption_ops.helpers import extract_video_id
 
 
 # If modifying these scopes, delete the token.pickle file

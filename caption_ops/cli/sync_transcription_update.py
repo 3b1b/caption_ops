@@ -3,21 +3,21 @@ import os
 import pysrt
 from pathlib import Path
 
-from helpers import get_web_id_to_video_id_map
-from helpers import get_all_files_with_ending
-from helpers import json_load
-from helpers import json_dump
-from helpers import temporary_message
-from helpers import get_sentences
+from caption_ops.helpers import get_web_id_to_video_id_map
+from caption_ops.helpers import get_all_files_with_ending
+from caption_ops.helpers import json_load
+from caption_ops.helpers import json_dump
+from caption_ops.helpers import temporary_message
+from caption_ops.helpers import get_sentences
 
-from sentence_timings import get_sentence_timings
-from sentence_timings import find_closest_aligning_substrings
-from sentence_timings import write_sentence_timing_file
-from srt_ops import write_srt_from_sentences_and_time_ranges
+from caption_ops.sentence_timings import get_sentence_timings
+from caption_ops.sentence_timings import find_closest_aligning_substrings
+from caption_ops.sentence_timings import write_sentence_timing_file
+from caption_ops.srt_ops import write_srt_from_sentences_and_time_ranges
 
-from upload import get_youtube_api
-from upload import upload_caption
-from upload import upload_video_localizations
+from caption_ops.upload import get_youtube_api
+from caption_ops.upload import upload_caption
+from caption_ops.upload import upload_video_localizations
 
 
 def main(input_file: str, upload=True):
